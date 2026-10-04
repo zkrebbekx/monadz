@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+    <img src="docs/assets/logo-light.png" alt="monadz logo: two boxes joined by a chain link, above an Ok track and an Err track that switches away" width="220">
+  </picture>
+</p>
+
 # monadz
 
 Monads for Go 1.27: `Option`, `Result`, `Either`, `Validation`, `Patch`,

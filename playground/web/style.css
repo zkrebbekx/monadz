@@ -155,11 +155,7 @@ code, kbd, pre, .mono { font-family: var(--mono); font-size: .92em; }
   font-size: 17px;
   letter-spacing: -.01em;
 }
-.brand-mark {
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--cyan);
-  box-shadow: inset 0 0 0 5px var(--indigo), 0 0 0 1px var(--cyan);
-}
+.brand-mark { width: 40px; height: 28px; display: block; }
 .brand-sub { font-weight: 400; color: #C7CBF0; }
 .topnav { display: flex; align-items: center; gap: 4px; }
 .topnav a {
