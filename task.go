@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -164,19 +163,24 @@ func (t Task[T]) ZipWith[U, V any](other Task[U], f func(T, U) V) Task[V] {
 		var firstErr error
 		aDone, bDone := fa.done, fb.done
 		for aDone != nil || bDone != nil {
+			// Read a Future's fields only after its done channel is closed;
+			// the other Future can still run and write its own fields.
+			var panicked bool
 			select {
 			case <-aDone:
 				aDone = nil
-				if fa.pe == nil && fa.res.err != nil && firstErr == nil {
+				panicked = fa.pe != nil
+				if !panicked && fa.res.err != nil && firstErr == nil {
 					firstErr = fa.res.err
 				}
 			case <-bDone:
 				bDone = nil
-				if fb.pe == nil && fb.res.err != nil && firstErr == nil {
+				panicked = fb.pe != nil
+				if !panicked && fb.res.err != nil && firstErr == nil {
 					firstErr = fb.res.err
 				}
 			}
-			if firstErr != nil || fa.pe != nil || fb.pe != nil {
+			if firstErr != nil || panicked {
 				cancel()
 			}
 		}
@@ -193,16 +197,23 @@ func (t Task[T]) ZipWith[U, V any](other Task[U], f func(T, U) V) Task[V] {
 // Timeout fails the Task with context.DeadlineExceeded if it does not finish
 // within d. The Task's context is canceled at the deadline. If the work
 // ignores its context, Timeout still returns at the deadline, and the work
-// finishes in the background.
+// finishes in the background. If that background work panics, the panic
+// crashes the program, as an unrecovered goroutine panic does.
 func (t Task[T]) Timeout(d time.Duration) Task[T] {
-	return TaskResult(func(ctx context.Context) Result[T] {
-		ctx, cancel := context.WithTimeout(ctx, d)
+	return TaskResult(func(parent context.Context) Result[T] {
+		ctx, cancel := context.WithTimeout(parent, d)
 		defer cancel()
 		f := t.Start(ctx)
 		select {
 		case <-f.done:
 			return f.Await()
 		case <-ctx.Done():
+			// The work may still run. If it panics later, raise the panic in a
+			// goroutine of its own, so that a bug still crashes the program.
+			go f.Await()
+			if err := parent.Err(); err != nil {
+				return Err[T](err) // the caller's ctx ended; this is not a timeout
+			}
 			return Err[T](fmt.Errorf("lift: task timed out after %v: %w", d, ctx.Err()))
 		}
 	})
@@ -221,15 +232,20 @@ func (t Task[T]) Delay(d time.Duration) Task[T] {
 // Once returns a Task that runs the work one time and then returns the
 // cached result. Concurrent runs wait for the first one. A run that fails
 // because its own context ended is not cached, so the next run tries again.
+// A caller that waits for another run stops waiting when its own context ends.
 func (t Task[T]) Once() Task[T] {
 	var (
-		mu   sync.Mutex
+		lock = make(chan struct{}, 1) // a mutex that a waiter can leave when its ctx ends
 		done bool
 		res  Result[T]
 	)
 	return TaskResult(func(ctx context.Context) Result[T] {
-		mu.Lock()
-		defer mu.Unlock()
+		select {
+		case lock <- struct{}{}:
+		case <-ctx.Done():
+			return Err[T](ctx.Err())
+		}
+		defer func() { <-lock }()
 		if done {
 			return res
 		}
@@ -293,6 +309,9 @@ func ExponentialBackoff(base, limit time.Duration) func(int) time.Duration {
 	return func(attempt int) time.Duration {
 		d := base
 		for i := 1; i < attempt && d < limit; i++ {
+			if d > limit/2 {
+				return limit // d*2 is above limit and can overflow
+			}
 			d *= 2
 		}
 		return min(d, limit)

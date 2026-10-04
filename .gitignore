@@ -1,0 +1,3 @@
+*.out
+*.test
+.claude/settings.local.json

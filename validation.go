@@ -90,7 +90,9 @@ func (v Validation[T]) AndThen[U any](f func(T) Validation[U]) Validation[U] {
 	return f(v.value)
 }
 
-// Ensure adds err if the value does not satisfy pred.
+// Ensure returns Invalid(err) if the Validation is Valid and its value does
+// not satisfy pred. An Invalid Validation is returned unchanged, and pred
+// does not run.
 func (v Validation[T]) Ensure(pred func(T) bool, err error) Validation[T] {
 	if len(v.errs) == 0 && !pred(v.value) {
 		return Invalid[T](err)

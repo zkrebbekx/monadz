@@ -1,5 +1,7 @@
 package lift
 
+import "slices"
+
 // State is a step that reads a state S and returns a value A and a new
 // state. Nothing runs until Run. (Haskell: State s a.)
 //
@@ -113,7 +115,10 @@ type Writer[W, A any] struct {
 }
 
 // NewWriter returns a Writer with the value a and the log entries w.
+// NewWriter copies w, so a later change to the caller's slice does not
+// change the log.
 func NewWriter[W, A any](a A, w ...W) Writer[W, A] {
+	w = slices.Clone(w)
 	return Writer[W, A]{run: func() (A, []W) { return a, w }}
 }
 
@@ -141,7 +146,8 @@ func (m Writer[W, A]) AndThen[B any](f func(A) Writer[W, B]) Writer[W, B] {
 	}}
 }
 
-// Censor applies f to the log. (Haskell: censor.)
+// Censor applies f to the log. f receives a copy, so it can change the
+// slice in place. (Haskell: censor.)
 func (m Writer[W, A]) Censor(f func([]W) []W) Writer[W, A] {
-	return Writer[W, A]{run: func() (A, []W) { a, w := m.run(); return a, f(w) }}
+	return Writer[W, A]{run: func() (A, []W) { a, w := m.run(); return a, f(slices.Clone(w)) }}
 }

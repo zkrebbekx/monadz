@@ -65,7 +65,11 @@ func DoRecover[T any](f func() T) (res Result[T]) {
 			case *earlyNone:
 				res = Err[T](ErrNone)
 			default:
-				res = Err[T](newPanicError(p))
+				if pe, ok := p.(*PanicError); ok {
+					res = Err[T](pe) // already captured (a task panic raised again): keep its stack
+				} else {
+					res = Err[T](newPanicError(p))
+				}
 			}
 		}
 	}()

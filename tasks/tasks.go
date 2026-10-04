@@ -149,11 +149,13 @@ func Race[T any](ts ...lift.Task[T]) lift.Task[T] {
 // calls in progress, starts no new calls, and returns that failure.
 // limit <= 0 means no limit.
 func Traverse[A, B any](items iter.Seq[A], limit int, f func(context.Context, A) (B, error)) lift.Task[[]B] {
-	var ts []lift.Task[B]
-	for a := range items {
-		ts = append(ts, lift.NewTask(func(ctx context.Context) (B, error) { return f(ctx, a) }))
-	}
-	return Limit(limit, ts...)
+	return lift.TaskResult(func(ctx context.Context) lift.Result[[]B] {
+		var ts []lift.Task[B] // read items at Run, so each run reads the sequence again
+		for a := range items {
+			ts = append(ts, lift.NewTask(func(ctx context.Context) (B, error) { return f(ctx, a) }))
+		}
+		return Limit(limit, ts...).Run(ctx)
+	})
 }
 
 // Zip runs both tasks at the same time and returns both values. At the
