@@ -1,5 +1,25 @@
 // Package options has functions that work on many monadz.Option values, or
 // that cannot be methods because of Go's type rules.
+//
+// The functions fall into three groups:
+//
+//   - Combine: Zip, Zip3, Map3, and Unzip join or split Options. First
+//     returns the first Some. Compose joins two Option-returning functions.
+//   - Collect: Collect and Traverse return Some of every value, or None if
+//     one value is None. Values and FilterMap keep only the Some values.
+//   - Search: Find, Head, Last, Min, and Max return an Option instead of a
+//     value and a bool.
+//
+// Flatten and Transpose are functions, not methods, because a method
+// receiver cannot be Option[Option[T]].
+//
+// The collection functions take an iter.Seq, so slices.Values and maps.Keys
+// work directly:
+//
+//	ports := options.Traverse(slices.Values(names), func(n string) monadz.Option[int] {
+//		return monadz.Lookup(portOf, n)
+//	})
+//	// Some([80 443]) if every name has a port; None if one name has none.
 package options
 
 import (
@@ -63,15 +83,7 @@ func Transpose[T any](o monadz.Option[monadz.Result[T]]) monadz.Result[monadz.Op
 // Collect returns Some of all values if every Option is Some. It stops at
 // the first None. (Rust: collect::<Option<Vec<_>>>; Haskell: sequence.)
 func Collect[T any](seq iter.Seq[monadz.Option[T]]) monadz.Option[[]T] {
-	out := []T{}
-	for o := range seq {
-		v, ok := o.Get()
-		if !ok {
-			return monadz.None[[]T]()
-		}
-		out = append(out, v)
-	}
-	return monadz.Some(out)
+	return Traverse(seq, identity[monadz.Option[T]])
 }
 
 // Traverse applies f to each item, and returns Some of all results if every
@@ -91,13 +103,7 @@ func Traverse[A, B any](seq iter.Seq[A], f func(A) monadz.Option[B]) monadz.Opti
 // Values yields the value of each Some and skips each None.
 // (Haskell: catMaybes; Rust: flatten.)
 func Values[T any](seq iter.Seq[monadz.Option[T]]) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		for o := range seq {
-			if v, ok := o.Get(); ok && !yield(v) {
-				return
-			}
-		}
-	}
+	return FilterMap(seq, identity[monadz.Option[T]])
 }
 
 // FilterMap applies f to each item and yields the values of the Somes.
@@ -178,6 +184,8 @@ func Max[T cmp.Ordered](seq iter.Seq[T]) monadz.Option[T] {
 func Min[T cmp.Ordered](seq iter.Seq[T]) monadz.Option[T] {
 	return reduce(seq, func(a, b T) T { return min(a, b) })
 }
+
+func identity[T any](v T) T { return v }
 
 func reduce[T any](seq iter.Seq[T], f func(T, T) T) monadz.Option[T] {
 	var (

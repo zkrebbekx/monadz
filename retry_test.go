@@ -112,7 +112,7 @@ func TestTaskTimeout(t *testing.T) {
 
 	t.Run("Given a Task that finishes in time", func(t *testing.T) {
 		t.Run("When Timeout is 1 minute", func(t *testing.T) {
-			r := monadz.TaskOf(5).Timeout(time.Minute).Run(ctx)
+			r := monadz.TaskOk(5).Timeout(time.Minute).Run(ctx)
 			t.Run("Then the value returns", func(t *testing.T) { tskEq(t, "value", r.Must(), 5) })
 		})
 	})
@@ -131,7 +131,7 @@ func TestTaskDelay(t *testing.T) {
 	t.Run("Given a Task with a 10ms Delay", func(t *testing.T) {
 		t.Run("When the delay ends", func(t *testing.T) {
 			start := time.Now()
-			r := monadz.TaskOf(1).Delay(10 * time.Millisecond).Run(context.Background())
+			r := monadz.TaskOk(1).Delay(10 * time.Millisecond).Run(context.Background())
 			elapsed := time.Since(start)
 			t.Run("Then the work runs after the wait", func(t *testing.T) {
 				tskEq(t, "value", r.Must(), 1)
@@ -313,9 +313,11 @@ func TestTaskRetry(t *testing.T) {
 			t.Run("When the error is "+ce.Error()+" and RetryIf is the default", func(t *testing.T) {
 				var calls atomic.Int32
 				r := tskCounter(&calls, ce).Retry(monadz.RetryPolicy{MaxAttempts: 5}).Run(ctx)
-				t.Run("Then it does not retry", func(t *testing.T) {
-					tskEq(t, "calls", calls.Load(), int32(1))
-					tskIs(t, r.Err(), ce)
+				t.Run("Then it retries, because the caller's ctx did not end", func(t *testing.T) {
+					tskEq(t, "calls", calls.Load(), int32(2))
+					if r.IsErr() {
+						t.Errorf("got %v, want Ok after the retry", r)
+					}
 				})
 			})
 		}

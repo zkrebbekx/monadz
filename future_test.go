@@ -112,7 +112,7 @@ func TestFuture(t *testing.T) {
 
 	t.Run("Given a started Task that succeeds", func(t *testing.T) {
 		t.Run("When AwaitContext is called", func(t *testing.T) {
-			r := monadz.TaskOf(6).Start(ctx).AwaitContext(ctx)
+			r := monadz.TaskOk(6).Start(ctx).AwaitContext(ctx)
 			t.Run("Then it returns the result", func(t *testing.T) { tskEq(t, "value", r.Must(), 6) })
 		})
 	})

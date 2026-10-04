@@ -19,8 +19,8 @@ func TestWriterPrimitives(t *testing.T) {
 		t.Run("When Run is called", func(t *testing.T) {
 			v, log := w.Run()
 			t.Run("Then it returns the value and the log", func(t *testing.T) {
-				eitEq(t, v, 7)
-				eitEq(t, log, []string{"a", "b"})
+				wantDeep(t, v, 7)
+				wantDeep(t, log, []string{"a", "b"})
 			})
 		})
 		t.Run("When the log from one Run is mutated", func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestWriterPrimitives(t *testing.T) {
 			_ = append(log[:1], "appended")
 			_, again := w.Run()
 			t.Run("Then a second Run returns the original log", func(t *testing.T) {
-				eitEq(t, again, []string{"a", "b"})
+				wantDeep(t, again, []string{"a", "b"})
 			})
 		})
 	})
@@ -39,7 +39,7 @@ func TestWriterPrimitives(t *testing.T) {
 		t.Run("When Run is called", func(t *testing.T) {
 			_, log := w.Run()
 			t.Run("Then the log is empty", func(t *testing.T) {
-				eitEq(t, len(log), 0)
+				wantDeep(t, len(log), 0)
 			})
 		})
 	})
@@ -51,7 +51,7 @@ func TestWriterPrimitives(t *testing.T) {
 			entries[0] = "mutated"
 			_, log := w.Run()
 			t.Run("Then the Writer log does not change", func(t *testing.T) {
-				eitEq(t, log, []string{"x", "y"})
+				wantDeep(t, log, []string{"x", "y"})
 			})
 		})
 	})
@@ -61,8 +61,8 @@ func TestWriterPrimitives(t *testing.T) {
 		t.Run("When Run is called", func(t *testing.T) {
 			v, log := w.Run()
 			t.Run("Then the value is Unit and the log has the entries", func(t *testing.T) {
-				eitEq(t, v, monadz.Unit{})
-				eitEq(t, log, []string{"start", "end"})
+				wantDeep(t, v, monadz.Unit{})
+				wantDeep(t, log, []string{"start", "end"})
 			})
 		})
 	})
@@ -74,8 +74,8 @@ func TestWriterCombinators(t *testing.T) {
 		t.Run("When Map doubles the value", func(t *testing.T) {
 			v, log := w.Map(eitDouble).Run()
 			t.Run("Then the value changes and the log does not", func(t *testing.T) {
-				eitEq(t, v, 20)
-				eitEq(t, log, []string{"charge 10"})
+				wantDeep(t, v, 20)
+				wantDeep(t, log, []string{"charge 10"})
 			})
 		})
 		t.Run("When AndThen chains two more charges and a Tell", func(t *testing.T) {
@@ -88,12 +88,12 @@ func TestWriterCombinators(t *testing.T) {
 			})
 			v, log := total.Run()
 			t.Run("Then the value is the sum and the logs join in order", func(t *testing.T) {
-				eitEq(t, v, 16)
-				eitEq(t, log, []string{"charge 10", "charge 5", "checkpoint", "charge 1"})
+				wantDeep(t, v, 16)
+				wantDeep(t, log, []string{"charge 10", "charge 5", "checkpoint", "charge 1"})
 			})
 			t.Run("Then a second Run gives the same log", func(t *testing.T) {
 				_, again := total.Run()
-				eitEq(t, again, log)
+				wantDeep(t, again, log)
 			})
 		})
 		t.Run("When Censor removes entries from the log", func(t *testing.T) {
@@ -108,8 +108,8 @@ func TestWriterCombinators(t *testing.T) {
 			})
 			v, log := c.Run()
 			t.Run("Then the value stays and the log is changed", func(t *testing.T) {
-				eitEq(t, v, 1)
-				eitEq(t, log, []string{"ok"})
+				wantDeep(t, v, 1)
+				wantDeep(t, log, []string{"ok"})
 			})
 		})
 		t.Run("When Censor changes the log slice in place", func(t *testing.T) {
@@ -121,8 +121,8 @@ func TestWriterCombinators(t *testing.T) {
 			_, censored := c.Run()
 			_, original := base.Run()
 			t.Run("Then the censored log changes and the base Writer log does not", func(t *testing.T) {
-				eitEq(t, censored, []string{"***", "ok"})
-				eitEq(t, original, []string{"secret", "ok"})
+				wantDeep(t, censored, []string{"***", "ok"})
+				wantDeep(t, original, []string{"secret", "ok"})
 			})
 		})
 	})

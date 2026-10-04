@@ -9,26 +9,22 @@
 //		newSignup,
 //	)
 //	// form is Valid(signup), or Invalid with ALL field errors.
+//
+// To combine only two values, use the method monadz.Validation.ZipWith. To
+// make one check, use monadz.ValidIf.
 package validations
 
 import (
 	"iter"
+	"slices"
 
 	"github.com/zkrebbekx/monadz"
 )
 
-func errsOf(vs ...interface{ Errors() []error }) []error {
-	var errs []error
-	for _, v := range vs {
-		errs = append(errs, v.Errors()...)
-	}
-	return errs
-}
-
 // Map2 combines 2 Validations with combine. If any is Invalid, Map2 returns
 // Invalid with the errors of ALL of them, in argument order.
 func Map2[A, B, R any](a monadz.Validation[A], b monadz.Validation[B], combine func(A, B) R) monadz.Validation[R] {
-	if errs := errsOf(a, b); len(errs) > 0 {
+	if errs := slices.Concat(a.Errors(), b.Errors()); len(errs) > 0 {
 		return monadz.Invalid[R](errs...)
 	}
 	va, _ := a.Get()
@@ -39,7 +35,7 @@ func Map2[A, B, R any](a monadz.Validation[A], b monadz.Validation[B], combine f
 // Map3 combines 3 Validations with combine. If any is Invalid, Map3 returns
 // Invalid with the errors of ALL of them, in argument order.
 func Map3[A, B, C, R any](a monadz.Validation[A], b monadz.Validation[B], c monadz.Validation[C], combine func(A, B, C) R) monadz.Validation[R] {
-	if errs := errsOf(a, b, c); len(errs) > 0 {
+	if errs := slices.Concat(a.Errors(), b.Errors(), c.Errors()); len(errs) > 0 {
 		return monadz.Invalid[R](errs...)
 	}
 	va, _ := a.Get()
@@ -51,7 +47,7 @@ func Map3[A, B, C, R any](a monadz.Validation[A], b monadz.Validation[B], c mona
 // Map4 combines 4 Validations with combine. If any is Invalid, Map4 returns
 // Invalid with the errors of ALL of them, in argument order.
 func Map4[A, B, C, D, R any](a monadz.Validation[A], b monadz.Validation[B], c monadz.Validation[C], d monadz.Validation[D], combine func(A, B, C, D) R) monadz.Validation[R] {
-	if errs := errsOf(a, b, c, d); len(errs) > 0 {
+	if errs := slices.Concat(a.Errors(), b.Errors(), c.Errors(), d.Errors()); len(errs) > 0 {
 		return monadz.Invalid[R](errs...)
 	}
 	va, _ := a.Get()
@@ -64,7 +60,7 @@ func Map4[A, B, C, D, R any](a monadz.Validation[A], b monadz.Validation[B], c m
 // Map5 combines 5 Validations with combine. If any is Invalid, Map5 returns
 // Invalid with the errors of ALL of them, in argument order.
 func Map5[A, B, C, D, E, R any](a monadz.Validation[A], b monadz.Validation[B], c monadz.Validation[C], d monadz.Validation[D], e monadz.Validation[E], combine func(A, B, C, D, E) R) monadz.Validation[R] {
-	if errs := errsOf(a, b, c, d, e); len(errs) > 0 {
+	if errs := slices.Concat(a.Errors(), b.Errors(), c.Errors(), d.Errors(), e.Errors()); len(errs) > 0 {
 		return monadz.Invalid[R](errs...)
 	}
 	va, _ := a.Get()
@@ -78,7 +74,7 @@ func Map5[A, B, C, D, E, R any](a monadz.Validation[A], b monadz.Validation[B], 
 // Map6 combines 6 Validations with combine. If any is Invalid, Map6 returns
 // Invalid with the errors of ALL of them, in argument order.
 func Map6[A, B, C, D, E, F, R any](a monadz.Validation[A], b monadz.Validation[B], c monadz.Validation[C], d monadz.Validation[D], e monadz.Validation[E], f monadz.Validation[F], combine func(A, B, C, D, E, F) R) monadz.Validation[R] {
-	if errs := errsOf(a, b, c, d, e, f); len(errs) > 0 {
+	if errs := slices.Concat(a.Errors(), b.Errors(), c.Errors(), d.Errors(), e.Errors(), f.Errors()); len(errs) > 0 {
 		return monadz.Invalid[R](errs...)
 	}
 	va, _ := a.Get()

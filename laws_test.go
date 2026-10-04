@@ -56,19 +56,19 @@ func TestLawsOption(t *testing.T) {
 		for _, a := range eitLawInts {
 			t.Run(fmt.Sprintf("When left identity is checked for a=%d", a), func(t *testing.T) {
 				t.Run("Then Some(a).AndThen(f) equals f(a)", func(t *testing.T) {
-					eitEq(t, monadz.Some(a).AndThen(half), half(a))
+					wantDeep(t, monadz.Some(a).AndThen(half), half(a))
 				})
 			})
 		}
 		for _, m := range ms {
 			t.Run(fmt.Sprintf("When right identity and associativity are checked for m=%v", m), func(t *testing.T) {
 				t.Run("Then m.AndThen(Some) equals m", func(t *testing.T) {
-					eitEq(t, m.AndThen(monadz.Some[int]), m)
+					wantDeep(t, m.AndThen(monadz.Some[int]), m)
 				})
 				t.Run("Then the grouping of AndThen does not change the result", func(t *testing.T) {
 					lhs := m.AndThen(half).AndThen(dec)
 					rhs := m.AndThen(func(x int) monadz.Option[int] { return half(x).AndThen(dec) })
-					eitEq(t, lhs, rhs)
+					wantDeep(t, lhs, rhs)
 				})
 			})
 		}
@@ -96,19 +96,19 @@ func TestLawsResult(t *testing.T) {
 		for _, a := range eitLawInts {
 			t.Run(fmt.Sprintf("When left identity is checked for a=%d", a), func(t *testing.T) {
 				t.Run("Then Ok(a).AndThen(f) equals f(a)", func(t *testing.T) {
-					eitEq(t, monadz.Ok(a).AndThen(half), half(a))
+					wantDeep(t, monadz.Ok(a).AndThen(half), half(a))
 				})
 			})
 		}
 		for _, m := range ms {
 			t.Run(fmt.Sprintf("When right identity and associativity are checked for m=%v", m), func(t *testing.T) {
 				t.Run("Then m.AndThen(Ok) equals m", func(t *testing.T) {
-					eitEq(t, m.AndThen(monadz.Ok[int]), m)
+					wantDeep(t, m.AndThen(monadz.Ok[int]), m)
 				})
 				t.Run("Then the grouping of AndThen does not change the result", func(t *testing.T) {
 					lhs := m.AndThen(half).AndThen(dec)
 					rhs := m.AndThen(func(x int) monadz.Result[int] { return half(x).AndThen(dec) })
-					eitEq(t, lhs, rhs)
+					wantDeep(t, lhs, rhs)
 				})
 			})
 		}
@@ -137,19 +137,19 @@ func TestLawsEither(t *testing.T) {
 		for _, a := range eitLawInts {
 			t.Run(fmt.Sprintf("When left identity is checked for a=%d", a), func(t *testing.T) {
 				t.Run("Then Right(a).AndThen(f) equals f(a)", func(t *testing.T) {
-					eitEq(t, unit(a).AndThen(half), half(a))
+					wantDeep(t, unit(a).AndThen(half), half(a))
 				})
 			})
 		}
 		for _, m := range ms {
 			t.Run(fmt.Sprintf("When right identity and associativity are checked for m=%v", m), func(t *testing.T) {
 				t.Run("Then m.AndThen(Right) equals m", func(t *testing.T) {
-					eitEq(t, m.AndThen(unit), m)
+					wantDeep(t, m.AndThen(unit), m)
 				})
 				t.Run("Then the grouping of AndThen does not change the result", func(t *testing.T) {
 					lhs := m.AndThen(half).AndThen(dec)
 					rhs := m.AndThen(func(x int) monadz.Either[string, int] { return half(x).AndThen(dec) })
-					eitEq(t, lhs, rhs)
+					wantDeep(t, lhs, rhs)
 				})
 			})
 		}
@@ -163,7 +163,7 @@ func eitSameState[A any](t *testing.T, a, b monadz.State[int, A]) {
 	for _, s := range eitLawInts {
 		av, as := a.Run(s)
 		bv, bs := b.Run(s)
-		eitEq(t, []any{av, as}, []any{bv, bs})
+		wantDeep(t, []any{av, as}, []any{bv, bs})
 	}
 }
 
@@ -210,7 +210,7 @@ func TestLawsState(t *testing.T) {
 func eitSameReader[A any](t *testing.T, a, b monadz.Reader[int, A]) {
 	t.Helper()
 	for _, env := range eitLawInts {
-		eitEq(t, a.Run(env), b.Run(env))
+		wantDeep(t, a.Run(env), b.Run(env))
 	}
 }
 
@@ -225,7 +225,7 @@ func TestLawsReader(t *testing.T) {
 		ms := map[string]monadz.Reader[int, int]{
 			"ReaderOf(5)": monadz.ReaderOf[int](5),
 			"Ask":         monadz.Ask[int](),
-			"Asks":        monadz.Asks(func(env int) int { return env * env }),
+			"NewReader":   monadz.NewReader(func(env int) int { return env * env }),
 			"Local":       monadz.Ask[int]().Local(func(env int) int { return env + 1 }),
 		}
 		for _, a := range eitLawInts {
@@ -259,7 +259,7 @@ func eitSameWriter[A any](t *testing.T, a, b monadz.Writer[string, A]) {
 	if len(al) == 0 && len(bl) == 0 {
 		al, bl = nil, nil
 	}
-	eitEq(t, []any{av, al}, []any{bv, bl})
+	wantDeep(t, []any{av, al}, []any{bv, bl})
 }
 
 func TestLawsWriter(t *testing.T) {

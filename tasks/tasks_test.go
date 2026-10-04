@@ -214,7 +214,7 @@ func TestAll(t *testing.T) {
 	})
 }
 
-func TestLimit(t *testing.T) {
+func TestAllLimit(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Given 20 tasks that each sleep 1ms", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestLimit(t *testing.T) {
 			})
 		}
 		t.Run("When Limit(3) runs them", func(t *testing.T) {
-			r := tasks.Limit(3, ts...).Run(ctx)
+			r := tasks.AllLimit(3, ts...).Run(ctx)
 			t.Run("Then at most 3 run at once and the order stays", func(t *testing.T) {
 				if m := tr.maxRunning.Load(); m < 1 || m > 3 {
 					t.Errorf("got max %d running, want 1 to 3", m)
@@ -248,7 +248,7 @@ func TestLimit(t *testing.T) {
 		tr := &tskTracker{}
 		ts := []monadz.Task[int]{tr.value(1), tr.gated(0, tskErrBoom, nil), tr.value(3), tr.value(4)}
 		t.Run("When Limit(1) runs them", func(t *testing.T) {
-			r := tasks.Limit(1, ts...).Run(ctx)
+			r := tasks.AllLimit(1, ts...).Run(ctx)
 			t.Run("Then no new task starts after the failure", func(t *testing.T) {
 				if r.Err() != tskErrBoom {
 					t.Errorf("got %v, want %v", r.Err(), tskErrBoom)
@@ -263,7 +263,7 @@ func TestLimit(t *testing.T) {
 		tr := &tskTracker{}
 		for _, n := range []int{10, -1} {
 			t.Run(fmt.Sprintf("When Limit(%d) runs them", n), func(t *testing.T) {
-				r := tasks.Limit(n, tr.value(1), tr.value(2)).Run(ctx)
+				r := tasks.AllLimit(n, tr.value(1), tr.value(2)).Run(ctx)
 				t.Run("Then every task runs", func(t *testing.T) {
 					tskEq(t, "values", r.Must(), []int{1, 2})
 				})
@@ -275,7 +275,7 @@ func TestLimit(t *testing.T) {
 		tr := &tskTracker{}
 		ts := []monadz.Task[int]{tr.waitCtx(), tr.panicAfter(2), tr.value(3), tr.value(4)}
 		t.Run("When Limit(2) runs them", func(t *testing.T) {
-			p := tskMustPanic(t, func() { tasks.Limit(2, ts...).Run(ctx) })
+			p := tskMustPanic(t, func() { tasks.AllLimit(2, ts...).Run(ctx) })
 			t.Run("Then no new task starts and every started task stopped", func(t *testing.T) {
 				tskPanicError(t, p)
 				tskEq(t, "started", tr.started.Load(), int32(2))
@@ -510,7 +510,7 @@ func TestZip(t *testing.T) {
 
 	t.Run("Given two successful tasks", func(t *testing.T) {
 		t.Run("When Zip runs", func(t *testing.T) {
-			r := tasks.Zip(monadz.TaskOf(1), monadz.TaskOf("a")).Run(ctx)
+			r := tasks.Zip(monadz.TaskOk(1), monadz.TaskOk("a")).Run(ctx)
 			t.Run("Then it returns a Pair", func(t *testing.T) {
 				tskEq(t, "pair", r.Must(), monadz.PairOf(1, "a"))
 			})
@@ -534,7 +534,7 @@ func TestZip(t *testing.T) {
 
 	t.Run("Given three successful tasks", func(t *testing.T) {
 		t.Run("When Zip3 runs", func(t *testing.T) {
-			r := tasks.Zip3(monadz.TaskOf(1), monadz.TaskOf("a"), monadz.TaskOf(true)).Run(ctx)
+			r := tasks.Zip3(monadz.TaskOk(1), monadz.TaskOk("a"), monadz.TaskOk(true)).Run(ctx)
 			t.Run("Then it returns a Triple", func(t *testing.T) {
 				tskEq(t, "triple", r.Must(), monadz.TripleOf(1, "a", true))
 			})
@@ -559,7 +559,7 @@ func TestZip(t *testing.T) {
 	t.Run("Given a task that waits for ctx, a panicking task, and a success", func(t *testing.T) {
 		tr := &tskTracker{}
 		t.Run("When Zip3 runs", func(t *testing.T) {
-			p := tskMustPanic(t, func() { tasks.Zip3(tr.waitCtx(), tr.panicAfter(2), monadz.TaskOf(true)).Run(ctx) })
+			p := tskMustPanic(t, func() { tasks.Zip3(tr.waitCtx(), tr.panicAfter(2), monadz.TaskOk(true)).Run(ctx) })
 			stopped := tr.stopped.Load()
 			t.Run("Then the caller panics after the others stopped", func(t *testing.T) {
 				tskPanicError(t, p)

@@ -35,16 +35,19 @@ func (e Either[L, R]) IsLeftAnd(pred func(L) bool) bool { return !e.isRight && p
 // IsRightAnd reports whether the Either holds a Right value that satisfies pred.
 func (e Either[L, R]) IsRightAnd(pred func(R) bool) bool { return e.isRight && pred(e.right) }
 
-// Left returns the Left value as an Option. (Haskell: fromLeft as Maybe.)
+// Left returns the Left value as an Option. (Haskell: leftToMaybe, in the
+// either package.)
 func (e Either[L, R]) Left() Option[L] { return FromTuple(e.left, !e.isRight) }
 
-// Right returns the Right value as an Option.
+// Right returns the Right value as an Option. (Haskell: rightToMaybe, in the
+// either package.)
 func (e Either[L, R]) Right() Option[R] { return FromTuple(e.right, e.isRight) }
 
-// Unpack returns both slots and true if the Right slot is the live one.
+// Unpack returns the Left value, the Right value, and true if the Either
+// holds a Right value. The value on the other side is its zero value.
 func (e Either[L, R]) Unpack() (L, R, bool) { return e.left, e.right, e.isRight }
 
-// LeftOr returns the Left value, or fallback.
+// LeftOr returns the Left value, or fallback. (Haskell: fromLeft.)
 func (e Either[L, R]) LeftOr(fallback L) L {
 	if e.isRight {
 		return fallback
@@ -52,12 +55,20 @@ func (e Either[L, R]) LeftOr(fallback L) L {
 	return e.left
 }
 
-// RightOr returns the Right value, or fallback.
+// RightOr returns the Right value, or fallback. (Haskell: fromRight.)
 func (e Either[L, R]) RightOr(fallback R) R {
 	if !e.isRight {
 		return fallback
 	}
 	return e.right
+}
+
+// LeftOrElse returns the Left value, or f applied to the Right value.
+func (e Either[L, R]) LeftOrElse(f func(R) L) L {
+	if e.isRight {
+		return f(e.right)
+	}
+	return e.left
 }
 
 // RightOrElse returns the Right value, or f applied to the Left value.
@@ -66,6 +77,33 @@ func (e Either[L, R]) RightOrElse(f func(L) R) R {
 		return f(e.left)
 	}
 	return e.right
+}
+
+// MapOr applies f to the Right value, or returns fallback for a Left.
+// (Rust: Option::map_or; Haskell: either (const fallback) f.)
+func (e Either[L, R]) MapOr[U any](fallback U, f func(R) U) U {
+	if !e.isRight {
+		return fallback
+	}
+	return f(e.right)
+}
+
+// Inspect calls f with the Right value, if any, and returns the Either
+// unchanged.
+func (e Either[L, R]) Inspect(f func(R)) Either[L, R] {
+	if e.isRight {
+		f(e.right)
+	}
+	return e
+}
+
+// InspectLeft calls f with the Left value, if any, and returns the Either
+// unchanged.
+func (e Either[L, R]) InspectLeft(f func(L)) Either[L, R] {
+	if !e.isRight {
+		f(e.left)
+	}
+	return e
 }
 
 // Map applies f to the Right value. (Haskell: fmap.)
@@ -129,7 +167,7 @@ func (e Either[L, R]) Swap() Either[R, L] {
 // String returns "Left(<value>)" or "Right(<value>)".
 func (e Either[L, R]) String() string {
 	if e.isRight {
-		return fmt.Sprintf("Right(%v)", e.right)
+		return fmt.Sprintf("Right(%v)", printable(e.right))
 	}
-	return fmt.Sprintf("Left(%v)", e.left)
+	return fmt.Sprintf("Left(%v)", printable(e.left))
 }

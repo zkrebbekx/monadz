@@ -8,6 +8,16 @@
 // If a task panics, the function cancels the other tasks, waits for them,
 // and then panics in the caller's goroutine with a *monadz.PanicError that
 // holds the original stack trace.
+//
+// The structured rule has one exception: monadz.Task.Timeout. It returns at
+// the deadline and does not wait for the work, even work that observes ctx.
+//
+// Comparison with Rust and Haskell:
+//
+//   - Any is like select_ok of the Rust futures crate. If every task fails,
+//     select_ok keeps only the last error. Any joins all the errors.
+//   - Race is like select_all of the Rust futures crate: it takes N tasks.
+//     Haskell race takes 2 actions and returns an Either.
 package tasks
 
 import (
@@ -21,13 +31,14 @@ import (
 // run starts the tasks with at most limit running at once (limit <= 0
 // means no limit). After each task stops, stop reports whether the outcome
 // is known. Then run cancels the rest, waits, and returns. Tasks that never
-// started have no entry in started.
-func run[T any](ctx context.Context, ts []monadz.Task[T], limit int, stop func(monadz.Result[T]) bool) (results []monadz.Result[T], started []bool, winner int) {
+// started keep the zero Result. Read them only when winner < 0, because
+// then every task started.
+func run[T any](ctx context.Context, ts []monadz.Task[T], limit int, stop func(monadz.Result[T]) bool) (results []monadz.Result[T], winner int) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	n := len(ts)
-	results, started, winner = make([]monadz.Result[T], n), make([]bool, n), -1
+	results, winner = make([]monadz.Result[T], n), -1
 	if limit <= 0 || limit > n {
 		limit = n
 	}
@@ -38,7 +49,6 @@ func run[T any](ctx context.Context, ts []monadz.Task[T], limit int, stop func(m
 		i := next
 		next++
 		running++
-		started[i] = true
 		futures[i] = ts[i].Start(ctx)
 		go func() { <-futures[i].Done(); done <- i }()
 	}
@@ -69,7 +79,7 @@ func run[T any](ctx context.Context, ts []monadz.Task[T], limit int, stop func(m
 	if firstPanic != nil {
 		panic(firstPanic)
 	}
-	return results, started, winner
+	return results, winner
 }
 
 func await[T any](f *monadz.Future[T]) (r monadz.Result[T], p any) {
@@ -85,13 +95,13 @@ func failed[T any](r monadz.Result[T]) bool { return r.IsErr() }
 // order. At the first failure, All cancels the other tasks, waits for them,
 // and returns that failure. (Haskell: mapConcurrently; Rust: try_join_all.)
 func All[T any](ts ...monadz.Task[T]) monadz.Task[[]T] {
-	return Limit(0, ts...)
+	return AllLimit(0, ts...)
 }
 
-// Limit is All with at most n tasks running at once. n <= 0 means no limit.
-func Limit[T any](n int, ts ...monadz.Task[T]) monadz.Task[[]T] {
-	return monadz.TaskResult(func(ctx context.Context) monadz.Result[[]T] {
-		results, _, winner := run(ctx, ts, n, failed[T])
+// AllLimit is All with at most n tasks running at once. n <= 0 means no limit.
+func AllLimit[T any](n int, ts ...monadz.Task[T]) monadz.Task[[]T] {
+	return monadz.NewTaskResult(func(ctx context.Context) monadz.Result[[]T] {
+		results, winner := run(ctx, ts, n, failed[T])
 		if winner >= 0 {
 			return monadz.Err[[]T](results[winner].Err())
 		}
@@ -106,8 +116,8 @@ func Limit[T any](n int, ts ...monadz.Task[T]) monadz.Task[[]T] {
 // AllSettled runs the tasks at the same time, waits for every one, and
 // returns every Result in input order. A failure does not cancel the others.
 func AllSettled[T any](ts ...monadz.Task[T]) monadz.Task[[]monadz.Result[T]] {
-	return monadz.TaskResult(func(ctx context.Context) monadz.Result[[]monadz.Result[T]] {
-		results, _, _ := run(ctx, ts, 0, never[T])
+	return monadz.NewTaskResult(func(ctx context.Context) monadz.Result[[]monadz.Result[T]] {
+		results, _ := run(ctx, ts, 0, never[T])
 		return monadz.Ok(results)
 	})
 }
@@ -116,11 +126,11 @@ func AllSettled[T any](ts ...monadz.Task[T]) monadz.Task[[]monadz.Result[T]] {
 // fails, Any returns all the errors joined, in input order.
 // (Rust: select_ok; JavaScript: Promise.any.)
 func Any[T any](ts ...monadz.Task[T]) monadz.Task[T] {
-	return monadz.TaskResult(func(ctx context.Context) monadz.Result[T] {
+	return monadz.NewTaskResult(func(ctx context.Context) monadz.Result[T] {
 		if len(ts) == 0 {
 			return monadz.Err[T](errors.New("tasks: Any with no tasks"))
 		}
-		results, _, winner := run(ctx, ts, 0, monadz.Result[T].IsOk)
+		results, winner := run(ctx, ts, 0, monadz.Result[T].IsOk)
 		if winner >= 0 {
 			return results[winner]
 		}
@@ -135,11 +145,11 @@ func Any[T any](ts ...monadz.Task[T]) monadz.Task[T] {
 // Race returns the first task to stop, success or failure, and cancels the
 // others. (Haskell: race; Rust: select.)
 func Race[T any](ts ...monadz.Task[T]) monadz.Task[T] {
-	return monadz.TaskResult(func(ctx context.Context) monadz.Result[T] {
+	return monadz.NewTaskResult(func(ctx context.Context) monadz.Result[T] {
 		if len(ts) == 0 {
 			return monadz.Err[T](errors.New("tasks: Race with no tasks"))
 		}
-		results, _, winner := run(ctx, ts, 0, func(monadz.Result[T]) bool { return true })
+		results, winner := run(ctx, ts, 0, func(monadz.Result[T]) bool { return true })
 		return results[winner]
 	})
 }
@@ -149,12 +159,12 @@ func Race[T any](ts ...monadz.Task[T]) monadz.Task[T] {
 // calls in progress, starts no new calls, and returns that failure.
 // limit <= 0 means no limit.
 func Traverse[A, B any](items iter.Seq[A], limit int, f func(context.Context, A) (B, error)) monadz.Task[[]B] {
-	return monadz.TaskResult(func(ctx context.Context) monadz.Result[[]B] {
+	return monadz.NewTaskResult(func(ctx context.Context) monadz.Result[[]B] {
 		var ts []monadz.Task[B] // read items at Run, so each run reads the sequence again
 		for a := range items {
 			ts = append(ts, monadz.NewTask(func(ctx context.Context) (B, error) { return f(ctx, a) }))
 		}
-		return Limit(limit, ts...).Run(ctx)
+		return AllLimit(limit, ts...).Run(ctx)
 	})
 }
 

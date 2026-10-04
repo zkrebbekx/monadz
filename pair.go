@@ -36,3 +36,8 @@ func TripleOf[A, B, C any](a A, b B, c C) Triple[A, B, C] { return Triple[A, B, 
 
 // Unpack returns the three values.
 func (t Triple[A, B, C]) Unpack() (A, B, C) { return t.First, t.Second, t.Third }
+
+// String formats the Triple as "(a, b, c)".
+func (t Triple[A, B, C]) String() string {
+	return fmt.Sprintf("(%v, %v, %v)", t.First, t.Second, t.Third)
+}

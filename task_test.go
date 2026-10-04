@@ -118,15 +118,15 @@ func TestTaskConstructors(t *testing.T) {
 		})
 	})
 
-	t.Run("Given TaskResult, TaskOf, and TaskErr", func(t *testing.T) {
+	t.Run("Given NewTaskResult, TaskOk, and TaskErr", func(t *testing.T) {
 		t.Run("When each runs", func(t *testing.T) {
-			res := monadz.TaskResult(func(context.Context) monadz.Result[string] { return monadz.Ok("hi") }).Run(ctx)
-			ok := monadz.TaskOf(3).Run(ctx)
+			res := monadz.NewTaskResult(func(context.Context) monadz.Result[string] { return monadz.Ok("hi") }).Run(ctx)
+			ok := monadz.TaskOk(3).Run(ctx)
 			bad := monadz.TaskErr[int](tskErrBoom).Run(ctx)
 			nilErr := monadz.TaskErr[int](nil).Run(ctx)
 			t.Run("Then each gives its value or error", func(t *testing.T) {
-				tskEq(t, "TaskResult", res.Must(), "hi")
-				tskEq(t, "TaskOf", ok.Must(), 3)
+				tskEq(t, "NewTaskResult", res.Must(), "hi")
+				tskEq(t, "TaskOk", ok.Must(), 3)
 				if bad.Err() != tskErrBoom {
 					t.Errorf("TaskErr: got %v, want %v", bad.Err(), tskErrBoom)
 				}
@@ -177,7 +177,7 @@ func TestTaskConstructors(t *testing.T) {
 
 func TestTaskTransformations(t *testing.T) {
 	ctx := context.Background()
-	good := monadz.TaskOf(2)
+	good := monadz.TaskOk(2)
 	bad := monadz.TaskErr[int](tskErrBoom)
 
 	t.Run("Given a successful Task and a failing Task", func(t *testing.T) {
@@ -212,7 +212,7 @@ func TestTaskTransformations(t *testing.T) {
 		})
 
 		t.Run("When AndThen is applied", func(t *testing.T) {
-			g := good.AndThen(func(v int) monadz.Task[int] { return monadz.TaskOf(v * 10) }).Run(ctx)
+			g := good.AndThen(func(v int) monadz.Task[int] { return monadz.TaskOk(v * 10) }).Run(ctx)
 			b := bad.AndThen(func(int) monadz.Task[int] { panic("must not run") }).Run(ctx)
 			t.Run("Then it runs the next Task only after a success", func(t *testing.T) {
 				tskEq(t, "value", g.Must(), 20)
@@ -252,7 +252,7 @@ func TestTaskTransformations(t *testing.T) {
 
 		t.Run("When Recover and OrElse are applied", func(t *testing.T) {
 			r := bad.Recover(func(error) (int, error) { return 9, nil }).Run(ctx)
-			o := bad.OrElse(func(error) monadz.Task[int] { return monadz.TaskOf(8) }).Run(ctx)
+			o := bad.OrElse(func(error) monadz.Task[int] { return monadz.TaskOk(8) }).Run(ctx)
 			og := good.OrElse(func(error) monadz.Task[int] { panic("must not run") }).Run(ctx)
 			t.Run("Then a failure is replaced and a success stays", func(t *testing.T) {
 				tskEq(t, "Recover", r.Must(), 9)
@@ -352,9 +352,9 @@ func TestTaskZipWith(t *testing.T) {
 	})
 
 	t.Run("Given a ZipWith nested in a ZipWith with a panic inside", func(t *testing.T) {
-		inner := monadz.NewTask(func(context.Context) (int, error) { panic("deep") }).ZipWith(monadz.TaskOf(1), sum)
+		inner := monadz.NewTask(func(context.Context) (int, error) { panic("deep") }).ZipWith(monadz.TaskOk(1), sum)
 		t.Run("When the outer Task runs", func(t *testing.T) {
-			p := tskMustPanic(t, func() { inner.ZipWith(monadz.TaskOf(1), sum).Run(ctx) })
+			p := tskMustPanic(t, func() { inner.ZipWith(monadz.TaskOk(1), sum).Run(ctx) })
 			t.Run("Then the original panic value reaches the caller", func(t *testing.T) {
 				tskPanicError(t, p, "deep")
 			})

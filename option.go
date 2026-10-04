@@ -1,6 +1,8 @@
 package monadz
 
 import (
+	"encoding"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -62,12 +64,9 @@ func Lookup[K comparable, V any](m map[K]V, k K) Option[V] {
 	return FromTuple(v, ok)
 }
 
-// At returns s[i], or None if i is out of range. A negative i counts from
-// the end: At(s, -1) is the last element. (Rust: slice::get.)
+// At returns s[i], or None if i is out of range. A negative i is out of
+// range: At does not count from the end. (Rust: slice::get.)
 func At[T any](s []T, i int) Option[T] {
-	if i < 0 {
-		i += len(s)
-	}
 	if i < 0 || i >= len(s) {
 		return None[T]()
 	}
@@ -168,8 +167,8 @@ func (o Option[T]) AndThen[U any](f func(T) Option[U]) Option[U] {
 	return f(o.value)
 }
 
-// Then applies a "comma ok" function to the value. A map lookup or a type
-// assertion helper plugs in directly.
+// Then applies a "comma ok" function to the value: a func(T) (U, bool),
+// such as os.LookupEnv.
 func (o Option[T]) Then[U any](f func(T) (U, bool)) Option[U] {
 	if !o.ok {
 		return None[U]()
@@ -186,12 +185,7 @@ func (o Option[T]) MapOr[U any](fallback U, f func(T) U) U {
 }
 
 // MapOrElse applies f to the value, or returns fallback(). (Rust: map_or_else.)
-func (o Option[T]) MapOrElse[U any](fallback func() U, f func(T) U) U {
-	if !o.ok {
-		return fallback()
-	}
-	return f(o.value)
-}
+func (o Option[T]) MapOrElse[U any](fallback func() U, f func(T) U) U { return o.Match(f, fallback) }
 
 // Match calls onSome with the value, or onNone, and returns the result.
 // (Haskell: maybe.)
@@ -351,7 +345,7 @@ func (o Option[T]) String() string {
 	if !o.ok {
 		return "None"
 	}
-	return fmt.Sprintf("Some(%v)", o.value)
+	return fmt.Sprintf("Some(%v)", printable(o.value))
 }
 
 // LogValue makes slog log the value itself, or null for None.
@@ -359,5 +353,17 @@ func (o Option[T]) LogValue() slog.Value {
 	if !o.ok {
 		return slog.AnyValue(nil)
 	}
-	return slog.AnyValue(o.value)
+	return slog.AnyValue(printable(o.value))
+}
+
+// printable returns &v if *T implements fmt.Stringer, json.Marshaler,
+// encoding.TextMarshaler, or slog.LogValuer, else v. fmt and slog then use
+// a method with a pointer receiver, for example (*big.Int).String. A type
+// with no such method still prints as {...}, not &{...}.
+func printable[T any](v T) any {
+	switch any(&v).(type) {
+	case fmt.Stringer, json.Marshaler, encoding.TextMarshaler, slog.LogValuer:
+		return &v
+	}
+	return v
 }

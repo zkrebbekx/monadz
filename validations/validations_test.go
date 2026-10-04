@@ -138,7 +138,7 @@ func TestCollectTraverse(t *testing.T) {
 			calls := 0
 			positive := func(n int) monadz.Validation[int] {
 				calls++
-				return monadz.Check(n*10, n > 0, fmt.Errorf("bad %d", n))
+				return monadz.ValidIf(n*10, n > 0, fmt.Errorf("bad %d", n))
 			}
 			ok := validations.Traverse(slices.Values([]int{1, 2}), positive)
 			bad := validations.Traverse(slices.Values([]int{-1, 2, -3}), positive)

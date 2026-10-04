@@ -1,10 +1,7 @@
 package monadz
 
 import (
-	"bytes"
-	"encoding/json"
 	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
 	"fmt"
 )
 
@@ -17,122 +14,112 @@ import (
 // An Option cannot tell Missing from Null. Patch can. The zero value is
 // Missing. Tag the field with `json:",omitzero"` so that a Missing field is
 // not written.
+//
+// Use omitzero, not omitempty. Under encoding/json/v2, omitempty drops every
+// value that encodes as null, "", [] or {}, including a Null Patch and
+// Some("").
 type Patch[T any] struct {
-	value T
-	state patchState
+	opt     Option[T] // Some for Set, None for Null and Missing
+	present bool      // true for Set and Null
 }
 
-type patchState uint8
-
-const (
-	patchMissing patchState = iota
-	patchNull
-	patchSet
-)
-
 // PatchSet returns a Patch that sets the value v.
-func PatchSet[T any](v T) Patch[T] { return Patch[T]{value: v, state: patchSet} }
+func PatchSet[T any](v T) Patch[T] { return Patch[T]{opt: Some(v), present: true} }
 
 // PatchNull returns a Patch that clears the value.
-func PatchNull[T any]() Patch[T] { return Patch[T]{state: patchNull} }
+func PatchNull[T any]() Patch[T] { return Patch[T]{present: true} }
 
 // PatchMissing returns a Patch that leaves the value unchanged.
 func PatchMissing[T any]() Patch[T] { return Patch[T]{} }
 
 // IsMissing reports whether the field was not in the request.
-func (p Patch[T]) IsMissing() bool { return p.state == patchMissing }
+func (p Patch[T]) IsMissing() bool { return !p.present }
 
 // IsNull reports whether the field was null.
-func (p Patch[T]) IsNull() bool { return p.state == patchNull }
+func (p Patch[T]) IsNull() bool { return p.present && p.opt.IsNone() }
 
 // IsSet reports whether the field holds a value.
-func (p Patch[T]) IsSet() bool { return p.state == patchSet }
+func (p Patch[T]) IsSet() bool { return p.opt.IsSome() }
 
 // IsZero reports whether the Patch is Missing. It makes omitzero work.
-func (p Patch[T]) IsZero() bool { return p.state == patchMissing }
+func (p Patch[T]) IsZero() bool { return !p.present }
 
-// Value returns the value as an Option: Some for Set, None otherwise.
-func (p Patch[T]) Value() Option[T] { return FromTuple(p.value, p.state == patchSet) }
+// Option returns the value as an Option: Some for Set, None otherwise.
+func (p Patch[T]) Option() Option[T] { return p.opt }
 
 // Apply changes *dst: Set stores the value, Null stores the zero value,
 // and Missing does nothing.
 func (p Patch[T]) Apply(dst *T) {
-	switch p.state {
-	case patchSet:
-		*dst = p.value
-	case patchNull:
-		var zero T
-		*dst = zero
+	if p.present {
+		*dst = p.opt.ValueOrZero()
 	}
 }
 
 // ApplyOption changes *dst: Set stores Some, Null stores None, and Missing
 // does nothing.
 func (p Patch[T]) ApplyOption(dst *Option[T]) {
-	switch p.state {
-	case patchSet:
-		*dst = Some(p.value)
-	case patchNull:
-		*dst = None[T]()
+	if p.present {
+		*dst = p.opt
 	}
+}
+
+// Map applies f to the value of a Set Patch. A Null Patch stays Null, and a
+// Missing Patch stays Missing.
+func (p Patch[T]) Map[U any](f func(T) U) Patch[U] {
+	return Patch[U]{opt: p.opt.Map(f), present: p.present}
+}
+
+// Match calls onSet with the value, or onNull, or onMissing, and returns
+// the result.
+func (p Patch[T]) Match[U any](onSet func(T) U, onNull func() U, onMissing func() U) U {
+	if !p.present {
+		return onMissing()
+	}
+	return p.opt.Match(onSet, onNull)
 }
 
 // String returns "Set(<value>)", "Null", or "Missing".
 func (p Patch[T]) String() string {
-	switch p.state {
-	case patchSet:
-		return fmt.Sprintf("Set(%v)", p.value)
-	case patchNull:
+	switch {
+	case !p.present:
+		return "Missing"
+	case p.opt.IsNone():
 		return "Null"
 	default:
-		return "Missing"
+		return fmt.Sprintf("Set(%v)", printable(p.opt.value))
 	}
 }
 
 // MarshalJSON implements json.Marshaler. Missing and Null both write null;
 // use omitzero to drop a Missing field.
-func (p Patch[T]) MarshalJSON() ([]byte, error) {
-	if p.state != patchSet {
-		return []byte("null"), nil
-	}
-	return json.Marshal(p.value)
-}
+//
+// encoding/json in Go 1.27 calls MarshalJSONTo first. This method is for
+// direct callers.
+func (p Patch[T]) MarshalJSON() ([]byte, error) { return p.opt.MarshalJSON() }
 
-// UnmarshalJSON implements json.Unmarshaler.
+// UnmarshalJSON implements json.Unmarshaler: null gives Null, and a value
+// gives Set. As with Option, a value that decodes from null gives Null.
+//
+// encoding/json in Go 1.27 calls UnmarshalJSONFrom first. This method is
+// for direct callers.
 func (p *Patch[T]) UnmarshalJSON(b []byte) error {
-	if bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
-		*p = PatchNull[T]()
-		return nil
-	}
-	var v T
-	if err := json.Unmarshal(b, &v); err != nil {
+	if err := p.opt.UnmarshalJSON(b); err != nil {
 		return err
 	}
-	*p = PatchSet(v)
+	p.present = true
 	return nil
 }
 
 // MarshalJSONTo implements the encoding/json/v2 MarshalerTo interface.
-func (p Patch[T]) MarshalJSONTo(enc *jsontext.Encoder) error {
-	if p.state != patchSet {
-		return enc.WriteToken(jsontext.Null)
-	}
-	return jsonv2.MarshalEncode(enc, p.value)
-}
+// Missing and Null both write null.
+func (p Patch[T]) MarshalJSONTo(enc *jsontext.Encoder) error { return p.opt.MarshalJSONTo(enc) }
 
-// UnmarshalJSONFrom implements the encoding/json/v2 UnmarshalerFrom interface.
+// UnmarshalJSONFrom implements the encoding/json/v2 UnmarshalerFrom
+// interface: null gives Null, and a value gives Set.
 func (p *Patch[T]) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
-	if dec.PeekKind() == 'n' {
-		if _, err := dec.ReadToken(); err != nil {
-			return err
-		}
-		*p = PatchNull[T]()
-		return nil
-	}
-	var v T
-	if err := jsonv2.UnmarshalDecode(dec, &v); err != nil {
+	if err := p.opt.UnmarshalJSONFrom(dec); err != nil {
 		return err
 	}
-	*p = PatchSet(v)
+	p.present = true
 	return nil
 }

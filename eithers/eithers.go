@@ -1,4 +1,16 @@
 // Package eithers has functions that work on many monadz.Either values.
+//
+//   - Partition splits a sequence into its Left values and its Right values.
+//     Lefts and Rights keep only one side.
+//   - Collect returns Right of every Right value, or the first Left.
+//   - Flatten joins an Either that holds an Either. It is a function, because
+//     a method receiver cannot be Either[L, Either[L, R]].
+//   - ToResult changes an Either[error, R] into a Result[R].
+//
+// The functions take an iter.Seq, so slices.Values works directly:
+//
+//	paywalls, grants := eithers.Partition(slices.Values(checks))
+//	// paywalls holds every Left; grants holds every Right, in input order.
 package eithers
 
 import (

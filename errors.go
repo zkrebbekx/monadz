@@ -15,9 +15,11 @@ var ErrNone = errors.New("monadz: value is None")
 // replaces it with this error instead of returning a success by mistake.
 var ErrNilError = errors.New("monadz: failure constructed with a nil error")
 
-// PanicError is a panic that DoRecover or a Task turned into a value.
+// PanicError holds a recovered panic. DoRecover returns it inside an Err.
+// A Task that runs in another goroutine captures a panic in a PanicError,
+// and Await raises it again in the waiting goroutine.
 type PanicError struct {
-	// Value is the value that was passed to panic.
+	// Value is the argument of the panic call.
 	Value any
 	// Stack is the stack trace of the goroutine at the time of the panic.
 	Stack []byte
@@ -25,11 +27,17 @@ type PanicError struct {
 	rethrown bool
 }
 
-func newPanicError(v any) *PanicError {
+// asPanicError returns v if it is already a *PanicError (a panic that was
+// captured and raised again), else a new *PanicError with the current stack.
+func asPanicError(v any) *PanicError {
+	if pe, ok := v.(*PanicError); ok {
+		return pe
+	}
 	return &PanicError{Value: v, Stack: debug.Stack()}
 }
 
-// Error returns "panic: <value>".
+// Error returns "panic: <value>". After the panic crossed goroutines, the
+// text also holds the stack of the goroutine that panicked.
 func (p *PanicError) Error() string {
 	if p.rethrown {
 		// The panic crossed goroutines. Put the original stack in the message,
@@ -46,11 +54,4 @@ func (p *PanicError) Unwrap() error {
 		return err
 	}
 	return nil
-}
-
-func nonNil(err error) error {
-	if err == nil {
-		return ErrNilError
-	}
-	return err
 }

@@ -1,5 +1,24 @@
 // Package results has functions that work on many monadz.Result values, or
 // that cannot be methods because of Go's type rules.
+//
+// The functions fall into three groups:
+//
+//   - Combine: Zip, Zip3, and Map3 join Results and stop at the first error.
+//     First returns the first Ok. Compose joins two Result-returning
+//     functions. FromFunc changes a func(A) (B, error) into a
+//     func(A) Result[B].
+//   - Collect: Collect, Traverse, TraverseFunc, and Fold return Ok of every
+//     value, or the first error. FromSeq2 collects a (value, error)
+//     iterator, such as rows from a database.
+//   - Split: Partition, Oks, and Errs separate the values from the errors.
+//
+// Flatten and Transpose are functions, not methods, because a method
+// receiver cannot be Result[Result[T]].
+//
+// The collection functions take an iter.Seq, so slices.Values works directly:
+//
+//	ports := results.TraverseFunc(slices.Values([]string{"80", "443"}), strconv.Atoi)
+//	// Ok([80 443]); with "x" in the list, the result is the Atoi error.
 package results
 
 import (
@@ -64,8 +83,9 @@ func Transpose[T any](r monadz.Result[monadz.Option[T]]) monadz.Option[monadz.Re
 	return monadz.Some(monadz.Ok(v))
 }
 
-// Lift converts a Go-shaped function into a Result-returning function.
-func Lift[A, B any](f func(A) (B, error)) func(A) monadz.Result[B] {
+// FromFunc converts a Go-shaped function func(A) (B, error) into a
+// Result-returning function.
+func FromFunc[A, B any](f func(A) (B, error)) func(A) monadz.Result[B] {
 	return func(a A) monadz.Result[B] { return monadz.Of(f(a)) }
 }
 
@@ -78,28 +98,15 @@ func Compose[A, B, C any](f func(A) monadz.Result[B], g func(B) monadz.Result[C]
 // first failure and does not read the rest of the sequence.
 // (Rust: collect::<Result<Vec<_>, _>>; Haskell: sequence.)
 func Collect[T any](seq iter.Seq[monadz.Result[T]]) monadz.Result[[]T] {
-	out := []T{}
-	for r := range seq {
-		v, err := r.Get()
-		if err != nil {
-			return monadz.Err[[]T](err)
-		}
-		out = append(out, v)
-	}
-	return monadz.Ok(out)
+	return Traverse(seq, identity[monadz.Result[T]])
 }
+
+func identity[T any](v T) T { return v }
 
 // FromSeq2 collects a Go (value, error) sequence, such as a database row
 // iterator. It stops at the first error.
 func FromSeq2[T any](seq iter.Seq2[T, error]) monadz.Result[[]T] {
-	out := []T{}
-	for v, err := range seq {
-		if err != nil {
-			return monadz.Err[[]T](err)
-		}
-		out = append(out, v)
-	}
-	return monadz.Ok(out)
+	return Collect(Seq(seq))
 }
 
 // Seq converts a Go (value, error) sequence into a sequence of Results.
@@ -129,7 +136,7 @@ func Traverse[A, B any](seq iter.Seq[A], f func(A) monadz.Result[B]) monadz.Resu
 
 // TraverseFunc is Traverse for a Go-shaped function func(A) (B, error).
 func TraverseFunc[A, B any](seq iter.Seq[A], f func(A) (B, error)) monadz.Result[[]B] {
-	return Traverse(seq, Lift(f))
+	return Traverse(seq, FromFunc(f))
 }
 
 // Fold runs f over the items with an accumulator, and stops at the first

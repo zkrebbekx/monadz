@@ -2,57 +2,11 @@ package monadz_test
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/zkrebbekx/monadz"
 )
-
-// eitEq fails the test if got and want are not deeply equal.
-func eitEq(t *testing.T, got, want any) {
-	t.Helper()
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %#v, want %#v", got, want)
-	}
-}
-
-// eitTrue fails the test if cond is false.
-func eitTrue(t *testing.T, cond bool, what string) {
-	t.Helper()
-	if !cond {
-		t.Errorf("want %s to be true, got false", what)
-	}
-}
-
-// eitMustPanic fails the test if f does not panic with want.
-func eitMustPanic(t *testing.T, want any, f func()) {
-	t.Helper()
-	defer func() {
-		t.Helper()
-		got := recover()
-		if got == nil {
-			t.Errorf("want panic %v, got no panic", want)
-			return
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got panic %#v, want panic %#v", got, want)
-		}
-	}()
-	f()
-}
-
-// eitNoPanic fails the test if f panics.
-func eitNoPanic(t *testing.T, f func()) {
-	t.Helper()
-	defer func() {
-		t.Helper()
-		if r := recover(); r != nil {
-			t.Errorf("want no panic, got panic %v", r)
-		}
-	}()
-	f()
-}
 
 type eitPaywall struct{ Reason string }
 
@@ -66,12 +20,12 @@ func TestEitherConstructors(t *testing.T) {
 		r := monadz.Right[string](7)
 		t.Run("When the state is inspected", func(t *testing.T) {
 			t.Run("Then the Left reports IsLeft and not IsRight", func(t *testing.T) {
-				eitTrue(t, l.IsLeft(), "l.IsLeft()")
-				eitTrue(t, !l.IsRight(), "!l.IsRight()")
+				wantTrue(t, l.IsLeft(), "l.IsLeft()")
+				wantTrue(t, !l.IsRight(), "!l.IsRight()")
 			})
 			t.Run("Then the Right reports IsRight and not IsLeft", func(t *testing.T) {
-				eitTrue(t, r.IsRight(), "r.IsRight()")
-				eitTrue(t, !r.IsLeft(), "!r.IsLeft()")
+				wantTrue(t, r.IsRight(), "r.IsRight()")
+				wantTrue(t, !r.IsLeft(), "!r.IsLeft()")
 			})
 		})
 	})
@@ -80,11 +34,11 @@ func TestEitherConstructors(t *testing.T) {
 		var z monadz.Either[string, int]
 		t.Run("When it is inspected", func(t *testing.T) {
 			t.Run("Then it is Left of the zero L", func(t *testing.T) {
-				eitTrue(t, z.IsLeft(), "z.IsLeft()")
-				eitEq(t, z.LeftOr("fallback"), "")
-				eitEq(t, z.Left(), monadz.Some(""))
-				eitTrue(t, z.Right().IsNone(), "z.Right().IsNone()")
-				eitEq(t, z.String(), "Left()")
+				wantTrue(t, z.IsLeft(), "z.IsLeft()")
+				wantDeep(t, z.LeftOr("fallback"), "")
+				wantDeep(t, z.Left(), monadz.Some(""))
+				wantTrue(t, z.Right().IsNone(), "z.Right().IsNone()")
+				wantDeep(t, z.String(), "Left()")
 			})
 		})
 	})
@@ -98,23 +52,23 @@ func TestEitherPredicates(t *testing.T) {
 		odd := func(n int) bool { return n%2 == 1 }
 		t.Run("When IsLeftAnd is called", func(t *testing.T) {
 			t.Run("Then it is true only for a Left that satisfies the predicate", func(t *testing.T) {
-				eitEq(t, l.IsLeftAnd(odd), true)
-				eitEq(t, l.IsLeftAnd(even), false)
-				eitEq(t, r.IsLeftAnd(even), false)
+				wantDeep(t, l.IsLeftAnd(odd), true)
+				wantDeep(t, l.IsLeftAnd(even), false)
+				wantDeep(t, r.IsLeftAnd(even), false)
 			})
 		})
 		t.Run("When IsRightAnd is called", func(t *testing.T) {
 			t.Run("Then it is true only for a Right that satisfies the predicate", func(t *testing.T) {
-				eitEq(t, r.IsRightAnd(even), true)
-				eitEq(t, r.IsRightAnd(odd), false)
-				eitEq(t, l.IsRightAnd(odd), false)
+				wantDeep(t, r.IsRightAnd(even), true)
+				wantDeep(t, r.IsRightAnd(odd), false)
+				wantDeep(t, l.IsRightAnd(odd), false)
 			})
 		})
 		t.Run("When the predicate panics if called", func(t *testing.T) {
 			boom := func(int) bool { panic("must not run") }
 			t.Run("Then IsLeftAnd on a Right and IsRightAnd on a Left do not call it", func(t *testing.T) {
-				eitNoPanic(t, func() { r.IsLeftAnd(boom) })
-				eitNoPanic(t, func() { l.IsRightAnd(boom) })
+				wantNoPanic(t, func() { r.IsLeftAnd(boom) })
+				wantNoPanic(t, func() { l.IsRightAnd(boom) })
 			})
 		})
 	})
@@ -126,26 +80,26 @@ func TestEitherAccessors(t *testing.T) {
 		r := monadz.Right[string](9)
 		t.Run("When Left() and Right() are called", func(t *testing.T) {
 			t.Run("Then each returns Some only for the live side", func(t *testing.T) {
-				eitEq(t, l.Left(), monadz.Some("x"))
-				eitEq(t, l.Right(), monadz.None[int]())
-				eitEq(t, r.Right(), monadz.Some(9))
-				eitEq(t, r.Left(), monadz.None[string]())
+				wantDeep(t, l.Left(), monadz.Some("x"))
+				wantDeep(t, l.Right(), monadz.None[int]())
+				wantDeep(t, r.Right(), monadz.Some(9))
+				wantDeep(t, r.Left(), monadz.None[string]())
 			})
 		})
 		t.Run("When Unpack is called", func(t *testing.T) {
 			lv, rv, ok := l.Unpack()
 			lv2, rv2, ok2 := r.Unpack()
 			t.Run("Then it returns both slots and the Right flag", func(t *testing.T) {
-				eitEq(t, []any{lv, rv, ok}, []any{"x", 0, false})
-				eitEq(t, []any{lv2, rv2, ok2}, []any{"", 9, true})
+				wantDeep(t, []any{lv, rv, ok}, []any{"x", 0, false})
+				wantDeep(t, []any{lv2, rv2, ok2}, []any{"", 9, true})
 			})
 		})
 		t.Run("When LeftOr and RightOr are called", func(t *testing.T) {
 			t.Run("Then the live value wins, else the fallback", func(t *testing.T) {
-				eitEq(t, l.LeftOr("fb"), "x")
-				eitEq(t, r.LeftOr("fb"), "fb")
-				eitEq(t, r.RightOr(-1), 9)
-				eitEq(t, l.RightOr(-1), -1)
+				wantDeep(t, l.LeftOr("fb"), "x")
+				wantDeep(t, r.LeftOr("fb"), "fb")
+				wantDeep(t, r.RightOr(-1), 9)
+				wantDeep(t, l.RightOr(-1), -1)
 			})
 		})
 		t.Run("When RightOrElse is called", func(t *testing.T) {
@@ -154,9 +108,9 @@ func TestEitherAccessors(t *testing.T) {
 			gotL := l.RightOrElse(f)
 			gotR := r.RightOrElse(f)
 			t.Run("Then a Left goes through f and a Right does not", func(t *testing.T) {
-				eitEq(t, gotL, 100)
-				eitEq(t, gotR, 9)
-				eitEq(t, calls, 1)
+				wantDeep(t, gotL, 100)
+				wantDeep(t, gotR, 9)
+				wantDeep(t, calls, 1)
 			})
 		})
 	})
@@ -169,15 +123,15 @@ func TestEitherMap(t *testing.T) {
 		t.Run("When Map changes the Right type", func(t *testing.T) {
 			got := r.Map(strconv.Itoa)
 			t.Run("Then the Right value is mapped", func(t *testing.T) {
-				eitEq(t, got, monadz.Right[string]("21"))
+				wantDeep(t, got, monadz.Right[string]("21"))
 			})
 		})
 		t.Run("When Map is called on a Left", func(t *testing.T) {
 			called := false
 			got := l.Map(func(int) string { called = true; return "" })
 			t.Run("Then f is not called and the Left passes through", func(t *testing.T) {
-				eitEq(t, called, false)
-				eitEq(t, got, monadz.Left[string, string]("bad"))
+				wantDeep(t, called, false)
+				wantDeep(t, got, monadz.Left[string, string]("bad"))
 			})
 		})
 		t.Run("When MapLeft is called on both", func(t *testing.T) {
@@ -186,9 +140,9 @@ func TestEitherMap(t *testing.T) {
 			gotL := l.MapLeft(f)
 			gotR := r.MapLeft(f)
 			t.Run("Then only the Left value is mapped", func(t *testing.T) {
-				eitEq(t, gotL, monadz.Left[int, int](3))
-				eitEq(t, gotR, monadz.Right[int](21))
-				eitEq(t, calls, 1)
+				wantDeep(t, gotL, monadz.Left[int, int](3))
+				wantDeep(t, gotR, monadz.Right[int](21))
+				wantDeep(t, calls, 1)
 			})
 		})
 		t.Run("When BiMap is called on both", func(t *testing.T) {
@@ -198,11 +152,11 @@ func TestEitherMap(t *testing.T) {
 			gotL := l.BiMap(onLeft, onRight)
 			gotR := r.BiMap(onLeft, onRight)
 			t.Run("Then each side calls only its own function", func(t *testing.T) {
-				eitTrue(t, gotL.IsLeft(), "gotL.IsLeft()")
-				eitEq(t, gotL.LeftOr(nil).Error(), "e:bad")
-				eitEq(t, gotR, monadz.Right[error](10.5))
-				eitEq(t, leftCalls, 1)
-				eitEq(t, rightCalls, 1)
+				wantTrue(t, gotL.IsLeft(), "gotL.IsLeft()")
+				wantDeep(t, gotL.LeftOr(nil).Error(), "e:bad")
+				wantDeep(t, gotR, monadz.Right[error](10.5))
+				wantDeep(t, leftCalls, 1)
+				wantDeep(t, rightCalls, 1)
 			})
 		})
 	})
@@ -220,13 +174,13 @@ func TestEitherAndThenOrElse(t *testing.T) {
 		t.Run("When AndThen runs on a Right that parses", func(t *testing.T) {
 			got := monadz.Right[string]("42").AndThen(parse)
 			t.Run("Then the result is the Right of the parsed value", func(t *testing.T) {
-				eitEq(t, got, monadz.Right[string](42))
+				wantDeep(t, got, monadz.Right[string](42))
 			})
 		})
 		t.Run("When AndThen runs on a Right that does not parse", func(t *testing.T) {
 			got := monadz.Right[string]("x").AndThen(parse)
 			t.Run("Then the result is the Left from the step", func(t *testing.T) {
-				eitEq(t, got, monadz.Left[string, int]("not a number: x"))
+				wantDeep(t, got, monadz.Left[string, int]("not a number: x"))
 			})
 		})
 		t.Run("When AndThen runs on a Left", func(t *testing.T) {
@@ -236,8 +190,8 @@ func TestEitherAndThenOrElse(t *testing.T) {
 				return parse(s)
 			})
 			t.Run("Then the step is skipped and the Left passes through", func(t *testing.T) {
-				eitEq(t, called, false)
-				eitEq(t, got, monadz.Left[string, int]("early"))
+				wantDeep(t, called, false)
+				wantDeep(t, got, monadz.Left[string, int]("early"))
 			})
 		})
 		t.Run("When OrElse recovers a Left", func(t *testing.T) {
@@ -249,7 +203,7 @@ func TestEitherAndThenOrElse(t *testing.T) {
 				return monadz.Right[error](n)
 			})
 			t.Run("Then the result is the recovered Right with the new L type", func(t *testing.T) {
-				eitEq(t, got, monadz.Right[error](7))
+				wantDeep(t, got, monadz.Right[error](7))
 			})
 		})
 		t.Run("When OrElse runs on a Right", func(t *testing.T) {
@@ -259,8 +213,8 @@ func TestEitherAndThenOrElse(t *testing.T) {
 				return monadz.Left[int, int](0)
 			})
 			t.Run("Then f is not called and the Right passes through", func(t *testing.T) {
-				eitEq(t, called, false)
-				eitEq(t, got, monadz.Right[int](5))
+				wantDeep(t, called, false)
+				wantDeep(t, got, monadz.Right[int](5))
 			})
 		})
 	})
@@ -278,24 +232,55 @@ func TestEitherMatchSwapString(t *testing.T) {
 		}
 		t.Run("When Match is called", func(t *testing.T) {
 			t.Run("Then each side calls its own branch", func(t *testing.T) {
-				eitEq(t, render(blocked), "paywall: trial over")
-				eitEq(t, render(granted), "welcome, pro")
+				wantDeep(t, render(blocked), "paywall: trial over")
+				wantDeep(t, render(granted), "welcome, pro")
 			})
 		})
 		t.Run("When Swap is called", func(t *testing.T) {
 			sb := blocked.Swap()
 			sg := granted.Swap()
 			t.Run("Then the sides are exchanged, and a second Swap restores them", func(t *testing.T) {
-				eitEq(t, sb, monadz.Right[eitGrant](eitPaywall{Reason: "trial over"}))
-				eitEq(t, sg, monadz.Left[eitGrant, eitPaywall](eitGrant{Plan: "pro"}))
-				eitEq(t, sb.Swap(), blocked)
+				wantDeep(t, sb, monadz.Right[eitGrant](eitPaywall{Reason: "trial over"}))
+				wantDeep(t, sg, monadz.Left[eitGrant, eitPaywall](eitGrant{Plan: "pro"}))
+				wantDeep(t, sb.Swap(), blocked)
 			})
 		})
 		t.Run("When String is called", func(t *testing.T) {
 			t.Run("Then it names the side and formats the value", func(t *testing.T) {
-				eitEq(t, blocked.String(), "Left({trial over})")
-				eitEq(t, granted.String(), "Right({pro})")
-				eitEq(t, fmt.Sprint(monadz.Right[string](eitDouble(2))), "Right(4)")
+				wantDeep(t, blocked.String(), "Left({trial over})")
+				wantDeep(t, granted.String(), "Right({pro})")
+				wantDeep(t, fmt.Sprint(monadz.Right[string](eitDouble(2))), "Right(4)")
+			})
+		})
+	})
+}
+
+func TestEitherExtras(t *testing.T) {
+	t.Run("Given a Left and a Right Either", func(t *testing.T) {
+		l := monadz.Left[string, int]("no")
+		r := monadz.Right[string](21)
+		t.Run("When Inspect and InspectLeft are called", func(t *testing.T) {
+			var rights []int
+			var lefts []string
+			gotL := l.Inspect(func(n int) { rights = append(rights, n) }).InspectLeft(func(s string) { lefts = append(lefts, s) })
+			gotR := r.Inspect(func(n int) { rights = append(rights, n) }).InspectLeft(func(s string) { lefts = append(lefts, s) })
+			t.Run("Then each function sees only its side, and the Eithers are unchanged", func(t *testing.T) {
+				wantDeep(t, rights, []int{21})
+				wantDeep(t, lefts, []string{"no"})
+				wantDeep(t, gotL, l)
+				wantDeep(t, gotR, r)
+			})
+		})
+		t.Run("When LeftOrElse is called", func(t *testing.T) {
+			t.Run("Then Left gives its value and Right gives f(right)", func(t *testing.T) {
+				wantEq(t, l.LeftOrElse(strconv.Itoa), "no")
+				wantEq(t, r.LeftOrElse(strconv.Itoa), "21")
+			})
+		})
+		t.Run("When MapOr is called", func(t *testing.T) {
+			t.Run("Then Right gives f(right) and Left gives the fallback", func(t *testing.T) {
+				wantEq(t, r.MapOr(-1, eitDouble), 42)
+				wantEq(t, l.MapOr(-1, eitDouble), -1)
 			})
 		})
 	})

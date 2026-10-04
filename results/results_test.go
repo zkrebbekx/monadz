@@ -126,10 +126,10 @@ func TestFlattenTranspose(t *testing.T) {
 	})
 }
 
-func TestLiftCompose(t *testing.T) {
+func TestFromFuncCompose(t *testing.T) {
 	t.Run("Given Go-shaped and Result-returning functions", func(t *testing.T) {
-		atoi := results.Lift(strconv.Atoi)
-		t.Run("When Lift wraps strconv.Atoi", func(t *testing.T) {
+		atoi := results.FromFunc(strconv.Atoi)
+		t.Run("When FromFunc wraps strconv.Atoi", func(t *testing.T) {
 			t.Run("Then it returns Ok for a number and Err for text", func(t *testing.T) {
 				resEq(t, atoi("7").Must(), 7)
 				resEq(t, atoi("x").IsErr(), true)
@@ -230,7 +230,7 @@ func TestSeq2(t *testing.T) {
 func TestTraverseFold(t *testing.T) {
 	t.Run("Given a sequence of strings", func(t *testing.T) {
 		t.Run("When Traverse parses valid numbers", func(t *testing.T) {
-			got := results.Traverse(slices.Values([]string{"1", "2"}), results.Lift(strconv.Atoi))
+			got := results.Traverse(slices.Values([]string{"1", "2"}), results.FromFunc(strconv.Atoi))
 			t.Run("Then it returns Ok of all numbers", func(t *testing.T) {
 				resDeep(t, got.Must(), []int{1, 2})
 			})

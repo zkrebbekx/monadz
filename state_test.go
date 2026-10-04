@@ -35,7 +35,7 @@ func eitTake() monadz.State[eitBucket, bool] {
 // eitNextLine returns the next invoice line and increments the line counter.
 func eitNextLine(desc string) monadz.State[int, string] {
 	return monadz.GetState[int]().AndThen(func(n int) monadz.State[int, string] {
-		return monadz.PutState(n + 1).Then(monadz.StateOf[int](fmt.Sprintf("%03d %s", n, desc)))
+		return monadz.PutState(n + 1).And(monadz.StateOf[int](fmt.Sprintf("%03d %s", n, desc)))
 	})
 }
 
@@ -45,42 +45,42 @@ func TestStatePrimitives(t *testing.T) {
 		t.Run("When StateOf runs", func(t *testing.T) {
 			a, s := monadz.StateOf[int]("v").Run(start)
 			t.Run("Then it returns the value and keeps the state", func(t *testing.T) {
-				eitEq(t, a, "v")
-				eitEq(t, s, 5)
+				wantDeep(t, a, "v")
+				wantDeep(t, s, 5)
 			})
 		})
 		t.Run("When GetState runs", func(t *testing.T) {
 			a, s := monadz.GetState[int]().Run(start)
 			t.Run("Then the value is the state", func(t *testing.T) {
-				eitEq(t, a, 5)
-				eitEq(t, s, 5)
+				wantDeep(t, a, 5)
+				wantDeep(t, s, 5)
 			})
 		})
 		t.Run("When PutState(9) runs", func(t *testing.T) {
 			a, s := monadz.PutState(9).Run(start)
 			t.Run("Then the state is replaced and the value is Unit", func(t *testing.T) {
-				eitEq(t, a, monadz.Unit{})
-				eitEq(t, s, 9)
+				wantDeep(t, a, monadz.Unit{})
+				wantDeep(t, s, 9)
 			})
 		})
 		t.Run("When ModifyState doubles the state", func(t *testing.T) {
 			s := monadz.ModifyState(eitDouble).Exec(start)
 			t.Run("Then the state is 10", func(t *testing.T) {
-				eitEq(t, s, 10)
+				wantDeep(t, s, 10)
 			})
 		})
-		t.Run("When GetsState reads a projection", func(t *testing.T) {
-			a, s := monadz.GetsState(func(n int) string { return fmt.Sprint(n * n) }).Run(start)
+		t.Run("When GetStateWith reads a projection", func(t *testing.T) {
+			a, s := monadz.GetStateWith(func(n int) string { return fmt.Sprint(n * n) }).Run(start)
 			t.Run("Then the value is the projection and the state does not change", func(t *testing.T) {
-				eitEq(t, a, "25")
-				eitEq(t, s, 5)
+				wantDeep(t, a, "25")
+				wantDeep(t, s, 5)
 			})
 		})
 		t.Run("When NewState wraps a function and Eval and Exec run it", func(t *testing.T) {
 			m := monadz.NewState(func(s int) (string, int) { return fmt.Sprint(s), s + 1 })
 			t.Run("Then Eval returns only the value and Exec only the state", func(t *testing.T) {
-				eitEq(t, m.Eval(start), "5")
-				eitEq(t, m.Exec(start), 6)
+				wantDeep(t, m.Eval(start), "5")
+				wantDeep(t, m.Exec(start), 6)
 			})
 		})
 	})
@@ -92,8 +92,8 @@ func TestStateCombinators(t *testing.T) {
 		t.Run("When Map formats the value", func(t *testing.T) {
 			a, s := tick.Map(func(n int) string { return fmt.Sprintf("#%d", n) }).Run(1)
 			t.Run("Then the value is mapped and the state still advances", func(t *testing.T) {
-				eitEq(t, a, "#1")
-				eitEq(t, s, 2)
+				wantDeep(t, a, "#1")
+				wantDeep(t, s, 2)
 			})
 		})
 		t.Run("When AndThen chains two ticks", func(t *testing.T) {
@@ -102,15 +102,15 @@ func TestStateCombinators(t *testing.T) {
 			})
 			a, s := m.Run(10)
 			t.Run("Then the second tick sees the state from the first", func(t *testing.T) {
-				eitEq(t, a, [2]int{10, 11})
-				eitEq(t, s, 12)
+				wantDeep(t, a, [2]int{10, 11})
+				wantDeep(t, s, 12)
 			})
 		})
-		t.Run("When Then runs two ticks", func(t *testing.T) {
-			a, s := tick.Then(tick).Run(10)
+		t.Run("When And runs two ticks", func(t *testing.T) {
+			a, s := tick.And(tick).Run(10)
 			t.Run("Then it keeps the second value and the final state", func(t *testing.T) {
-				eitEq(t, a, 11)
-				eitEq(t, s, 12)
+				wantDeep(t, a, 11)
+				wantDeep(t, s, 12)
 			})
 		})
 		t.Run("When a State is built and not run", func(t *testing.T) {
@@ -119,8 +119,8 @@ func TestStateCombinators(t *testing.T) {
 			before := calls
 			m.Run(1)
 			t.Run("Then nothing runs until Run", func(t *testing.T) {
-				eitEq(t, before, 0)
-				eitEq(t, calls, 1)
+				wantDeep(t, before, 0)
+				wantDeep(t, calls, 1)
 			})
 		})
 	})
@@ -131,7 +131,7 @@ func TestStateTokenBucket(t *testing.T) {
 		program := eitTake().AndThen(func(a bool) monadz.State[eitBucket, []bool] {
 			return eitTake().AndThen(func(b bool) monadz.State[eitBucket, []bool] {
 				return eitTake().AndThen(func(c bool) monadz.State[eitBucket, []bool] {
-					return eitRefill(2).Then(eitTake().Map(func(d bool) []bool {
+					return eitRefill(2).And(eitTake().Map(func(d bool) []bool {
 						return []bool{a, b, c, d}
 					}))
 				})
@@ -140,23 +140,23 @@ func TestStateTokenBucket(t *testing.T) {
 		t.Run("When it runs against a bucket with 2 of 3 tokens", func(t *testing.T) {
 			got, end := program.Run(eitBucket{Tokens: 2, Capacity: 3})
 			t.Run("Then the third take fails and the refill lets the fourth pass", func(t *testing.T) {
-				eitEq(t, got, []bool{true, true, false, true})
-				eitEq(t, end, eitBucket{Tokens: 1, Capacity: 3})
+				wantDeep(t, got, []bool{true, true, false, true})
+				wantDeep(t, end, eitBucket{Tokens: 1, Capacity: 3})
 			})
 		})
 		t.Run("When the same program runs against two start states", func(t *testing.T) {
 			gotFull, endFull := program.Run(eitBucket{Tokens: 3, Capacity: 3})
 			gotEmpty, endEmpty := program.Run(eitBucket{Tokens: 0, Capacity: 1})
 			t.Run("Then each run gives an independent result", func(t *testing.T) {
-				eitEq(t, gotFull, []bool{true, true, true, true})
-				eitEq(t, endFull, eitBucket{Tokens: 1, Capacity: 3})
-				eitEq(t, gotEmpty, []bool{false, false, false, true})
-				eitEq(t, endEmpty, eitBucket{Tokens: 0, Capacity: 1})
+				wantDeep(t, gotFull, []bool{true, true, true, true})
+				wantDeep(t, endFull, eitBucket{Tokens: 1, Capacity: 3})
+				wantDeep(t, gotEmpty, []bool{false, false, false, true})
+				wantDeep(t, endEmpty, eitBucket{Tokens: 0, Capacity: 1})
 			})
 			t.Run("Then a replay gives the same result as the first run", func(t *testing.T) {
 				again, againEnd := program.Run(eitBucket{Tokens: 3, Capacity: 3})
-				eitEq(t, again, gotFull)
-				eitEq(t, againEnd, endFull)
+				wantDeep(t, again, gotFull)
+				wantDeep(t, againEnd, endFull)
 			})
 		})
 	})
@@ -172,17 +172,66 @@ func TestStateInvoiceLines(t *testing.T) {
 		t.Run("When it runs from line 1", func(t *testing.T) {
 			lines, next := program.Run(1)
 			t.Run("Then the lines are 001, 002, 003 and the next number is 4", func(t *testing.T) {
-				eitEq(t, lines, []string{"001 widget", "002 gadget", "003 shipping"})
-				eitEq(t, next, 4)
+				wantDeep(t, lines, []string{"001 widget", "002 gadget", "003 shipping"})
+				wantDeep(t, next, 4)
 			})
 		})
 		t.Run("When it runs from line 1 and from line 40", func(t *testing.T) {
 			a := program.Eval(1)
 			b := program.Eval(40)
 			t.Run("Then the runs do not affect each other", func(t *testing.T) {
-				eitEq(t, a[0], "001 widget")
-				eitEq(t, b, []string{"040 widget", "041 gadget", "042 shipping"})
-				eitEq(t, program.Exec(40), 43)
+				wantDeep(t, a[0], "001 widget")
+				wantDeep(t, b, []string{"040 widget", "041 gadget", "042 shipping"})
+				wantDeep(t, program.Exec(40), 43)
+			})
+		})
+	})
+}
+
+func TestZeroStateReaderWriter(t *testing.T) {
+	const (
+		stateMsg  = "monadz: Run on a zero State; use NewState"
+		readerMsg = "monadz: Run on a zero Reader; use NewReader"
+		writerMsg = "monadz: Run on a zero Writer; use NewWriter"
+	)
+	t.Run("Given a zero State", func(t *testing.T) {
+		var z monadz.State[int, int]
+		inc := func(n int) monadz.State[int, int] { return monadz.StateOf[int](n + 1) }
+		t.Run("When each entry point runs it", func(t *testing.T) {
+			t.Run("Then each one panics with a clear message", func(t *testing.T) {
+				wantPanic(t, func() { z.Run(0) }, stateMsg)
+				wantPanic(t, func() { z.Eval(0) }, stateMsg)
+				wantPanic(t, func() { z.Exec(0) }, stateMsg)
+				wantPanic(t, func() { z.Map(func(n int) int { return n }).Run(0) }, stateMsg)
+				wantPanic(t, func() { z.AndThen(inc).Run(0) }, stateMsg)
+				wantPanic(t, func() { z.And(monadz.GetState[int]()).Run(0) }, stateMsg)
+				wantPanic(t, func() { monadz.GetState[int]().And(z).Run(0) }, stateMsg)
+			})
+		})
+	})
+	t.Run("Given a zero Reader", func(t *testing.T) {
+		var z monadz.Reader[int, int]
+		t.Run("When each entry point runs it", func(t *testing.T) {
+			t.Run("Then each one panics with a clear message", func(t *testing.T) {
+				wantPanic(t, func() { z.Run(0) }, readerMsg)
+				wantPanic(t, func() { z.Map(func(n int) int { return n }).Run(0) }, readerMsg)
+				wantPanic(t, func() {
+					z.AndThen(func(n int) monadz.Reader[int, int] { return monadz.ReaderOf[int](n) }).Run(0)
+				}, readerMsg)
+				wantPanic(t, func() { z.Local(func(n int) int { return n }).Run(0) }, readerMsg)
+			})
+		})
+	})
+	t.Run("Given a zero Writer", func(t *testing.T) {
+		var z monadz.Writer[string, int]
+		t.Run("When each entry point runs it", func(t *testing.T) {
+			t.Run("Then each one panics with a clear message", func(t *testing.T) {
+				wantPanic(t, func() { z.Run() }, writerMsg)
+				wantPanic(t, func() { z.Map(func(n int) int { return n }).Run() }, writerMsg)
+				wantPanic(t, func() {
+					z.AndThen(func(n int) monadz.Writer[string, int] { return monadz.NewWriter[string](n) }).Run()
+				}, writerMsg)
+				wantPanic(t, func() { z.Censor(func(w []string) []string { return w }).Run() }, writerMsg)
 			})
 		})
 	})

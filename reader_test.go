@@ -15,7 +15,7 @@ type eitConfig struct {
 }
 
 func eitAddr() monadz.Reader[eitConfig, string] {
-	return monadz.Asks(func(c eitConfig) string { return fmt.Sprintf("%s:%d", c.Host, c.Port) })
+	return monadz.NewReader(func(c eitConfig) string { return fmt.Sprintf("%s:%d", c.Host, c.Port) })
 }
 
 func TestReaderPrimitives(t *testing.T) {
@@ -24,22 +24,22 @@ func TestReaderPrimitives(t *testing.T) {
 		t.Run("When NewReader wraps a function", func(t *testing.T) {
 			r := monadz.NewReader(func(c eitConfig) int { return c.Port + 1 })
 			t.Run("Then Run calls it with the environment", func(t *testing.T) {
-				eitEq(t, r.Run(env), 5433)
+				wantDeep(t, r.Run(env), 5433)
 			})
 		})
 		t.Run("When ReaderOf runs", func(t *testing.T) {
 			t.Run("Then it ignores the environment", func(t *testing.T) {
-				eitEq(t, monadz.ReaderOf[eitConfig]("const").Run(env), "const")
+				wantDeep(t, monadz.ReaderOf[eitConfig]("const").Run(env), "const")
 			})
 		})
 		t.Run("When Ask runs", func(t *testing.T) {
 			t.Run("Then the value is the environment", func(t *testing.T) {
-				eitEq(t, monadz.Ask[eitConfig]().Run(env), env)
+				wantDeep(t, monadz.Ask[eitConfig]().Run(env), env)
 			})
 		})
-		t.Run("When Asks runs", func(t *testing.T) {
+		t.Run("When NewReader runs", func(t *testing.T) {
 			t.Run("Then the value is the projection of the environment", func(t *testing.T) {
-				eitEq(t, eitAddr().Run(env), "db:5432")
+				wantDeep(t, eitAddr().Run(env), "db:5432")
 			})
 		})
 		t.Run("When a Reader is built and not run", func(t *testing.T) {
@@ -48,8 +48,8 @@ func TestReaderPrimitives(t *testing.T) {
 			before := calls
 			r.Run(env)
 			t.Run("Then nothing runs until Run", func(t *testing.T) {
-				eitEq(t, before, 0)
-				eitEq(t, calls, 1)
+				wantDeep(t, before, 0)
+				wantDeep(t, calls, 1)
 			})
 		})
 	})
@@ -61,7 +61,7 @@ func TestReaderCombinators(t *testing.T) {
 		t.Run("When Map formats the value", func(t *testing.T) {
 			got := eitAddr().Map(func(a string) string { return "http://" + a }).Run(env)
 			t.Run("Then the value is mapped", func(t *testing.T) {
-				eitEq(t, got, "http://api:8080")
+				wantDeep(t, got, "http://api:8080")
 			})
 		})
 		t.Run("When AndThen builds a URL from the address", func(t *testing.T) {
@@ -74,8 +74,8 @@ func TestReaderCombinators(t *testing.T) {
 			})
 			got := url.Run(env)
 			t.Run("Then the same environment flows to the second step", func(t *testing.T) {
-				eitEq(t, got, "http://api:8080/v2")
-				eitEq(t, seen, []eitConfig{env})
+				wantDeep(t, got, "http://api:8080/v2")
+				wantDeep(t, seen, []eitConfig{env})
 			})
 		})
 		t.Run("When Local changes the port for an inner Reader", func(t *testing.T) {
@@ -85,8 +85,8 @@ func TestReaderCombinators(t *testing.T) {
 			})
 			got := both.Run(env)
 			t.Run("Then only the inner Reader sees the changed environment", func(t *testing.T) {
-				eitEq(t, got, [2]string{"api:9000", "api:8080"})
-				eitEq(t, env.Port, 8080)
+				wantDeep(t, got, [2]string{"api:9000", "api:8080"})
+				wantDeep(t, env.Port, 8080)
 			})
 		})
 	})

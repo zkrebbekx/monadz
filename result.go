@@ -1,6 +1,7 @@
 package monadz
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 	"log/slog"
@@ -12,7 +13,7 @@ import (
 // Equivalents: Rust Result<T, E> with E = error, Haskell Either error a.
 // For a typed failure value, use Either.
 type Result[T any] struct {
-	value T
+	value T // invariant: value is the zero value of T when err != nil
 	err   error
 }
 
@@ -21,7 +22,7 @@ func Ok[T any](v T) Result[T] { return Result[T]{value: v} }
 
 // Err returns a failed Result. A nil err becomes ErrNilError, so Err never
 // returns a success by mistake.
-func Err[T any](err error) Result[T] { return Result[T]{err: nonNil(err)} }
+func Err[T any](err error) Result[T] { return Result[T]{err: cmp.Or(err, ErrNilError)} }
 
 // Errf returns a failed Result with fmt.Errorf(format, args...).
 func Errf[T any](format string, args ...any) Result[T] {
@@ -56,14 +57,9 @@ func (r Result[T]) IsOkAnd(pred func(T) bool) bool { return r.err == nil && pred
 // satisfies pred.
 func (r Result[T]) IsErrAnd(pred func(error) bool) bool { return r.err != nil && pred(r.err) }
 
-// Get returns the Go pair (value, error).
-func (r Result[T]) Get() (T, error) {
-	if r.err != nil {
-		var zero T
-		return zero, r.err
-	}
-	return r.value, nil
-}
+// Get returns the Go pair (value, error). On a failure, the value is the
+// zero value of T.
+func (r Result[T]) Get() (T, error) { return r.value, r.err }
 
 // Err returns the error, or nil for a success.
 func (r Result[T]) Err() error { return r.err }
@@ -115,13 +111,7 @@ func (r Result[T]) ValueOrElse(f func(error) T) T {
 
 // ValueOrZero returns the value, or the zero value of T.
 // (Rust: unwrap_or_default.)
-func (r Result[T]) ValueOrZero() T {
-	if r.err != nil {
-		var zero T
-		return zero
-	}
-	return r.value
-}
+func (r Result[T]) ValueOrZero() T { return r.value }
 
 // Try returns the value. On a failure, it stops the enclosing Do, and Do
 // returns the error. See Do.
@@ -143,8 +133,7 @@ func (r Result[T]) Map[U any](f func(T) U) Result[U] {
 }
 
 // Then applies a Go-shaped step func(T) (U, error) to the value.
-// strconv.Atoi, url.Parse, json.Marshal, and your own functions plug in
-// directly.
+// strconv.Atoi, url.Parse, and your own functions work directly.
 func (r Result[T]) Then[U any](f func(T) (U, error)) Result[U] {
 	if r.err != nil {
 		return failed[U](r.err)
@@ -187,7 +176,7 @@ func (r Result[T]) Wrapf(format string, args ...any) Result[T] {
 }
 
 // Ensure returns Err(err) if the value does not satisfy pred.
-// (Scala: filterOrElse; Haskell: guard.)
+// (Scala: filterOrElse; Haskell: mfilter.)
 func (r Result[T]) Ensure(pred func(T) bool, err error) Result[T] {
 	if r.err == nil && !pred(r.value) {
 		return Err[T](err)
@@ -206,10 +195,7 @@ func (r Result[T]) MapOr[U any](fallback U, f func(T) U) U {
 // MapOrElse applies onOk to the value, or onErr to the error.
 // (Rust: map_or_else.)
 func (r Result[T]) MapOrElse[U any](onErr func(error) U, onOk func(T) U) U {
-	if r.err != nil {
-		return onErr(r.err)
-	}
-	return onOk(r.value)
+	return r.Match(onOk, onErr)
 }
 
 // Match calls onOk with the value or onErr with the error, and returns the
@@ -324,7 +310,7 @@ func (r Result[T]) String() string {
 	if r.err != nil {
 		return fmt.Sprintf("Err(%v)", r.err)
 	}
-	return fmt.Sprintf("Ok(%v)", r.value)
+	return fmt.Sprintf("Ok(%v)", printable(r.value))
 }
 
 // LogValue makes slog log the value, or a group with the error message.
@@ -332,7 +318,7 @@ func (r Result[T]) LogValue() slog.Value {
 	if r.err != nil {
 		return slog.GroupValue(slog.String("error", r.err.Error()))
 	}
-	return slog.AnyValue(r.value)
+	return slog.AnyValue(printable(r.value))
 }
 
 // failed returns a failed Result without the nil check of Err. Methods use

@@ -25,7 +25,7 @@ var noneSignal = &earlyNone{}
 //
 //	monadz.Do(func() Invoice {
 //		cust := repo.Customer(ctx, id).Try()
-//		plan := plans.Lookup(cust.PlanID).OkOr(ErrNoPlan).Try()
+//		plan := monadz.Lookup(plans, cust.PlanID).OkOr(ErrNoPlan).Try()
 //		return rate(cust, plan)
 //	})
 //
@@ -37,6 +37,14 @@ var noneSignal = &earlyNone{}
 //
 // Call Try only in the goroutine that runs f. A Try in another goroutine is
 // not inside Do, and its panic crashes the program.
+//
+// Call Try only where no code between Try and Do recovers panics, for
+// example a fmt String method or a text/template function. That code
+// catches the Try signal, and Do does not see the failure.
+//
+// Do not call Try in a deferred function. If a panic is in flight, the Try
+// signal replaces it, and Do returns Err instead of crashing. In a defer,
+// join the error into a named result with errors.Join.
 func Do[T any](f func() T) (res Result[T]) {
 	defer func() {
 		if p := recover(); p != nil {
@@ -60,22 +68,11 @@ func Do[T any](f func() T) (res Result[T]) {
 // request: an HTTP handler, a queue consumer, or a plugin call.
 func DoRecover[T any](f func() T) (res Result[T]) {
 	defer func() {
-		if p := recover(); p != nil {
-			switch s := p.(type) {
-			case *earlyErr:
-				res = Err[T](s.err)
-			case *earlyNone:
-				res = Err[T](ErrNone)
-			default:
-				if pe, ok := p.(*PanicError); ok {
-					res = Err[T](pe) // already captured (a task panic raised again): keep its stack
-				} else {
-					res = Err[T](newPanicError(p))
-				}
-			}
+		if p := recover(); p != nil { // Do re-panicked: p is not a Try signal
+			res = Err[T](asPanicError(p))
 		}
 	}()
-	return Ok(f())
+	return Do(f)
 }
 
 // DoOption runs f and returns its value as Some. Inside f, Option.Try on

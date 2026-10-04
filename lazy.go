@@ -2,9 +2,14 @@ package monadz
 
 import "sync"
 
-// Lazy is a value that is computed on the first Get, and then cached.
-// Get is safe for concurrent use; the function runs at most one time.
-// If the function panics, every Get panics with the same value.
+// Lazy holds a value that the first Get computes. Later calls to Get return
+// the cached value. Get is safe for concurrent use; the function runs at
+// most one time. If the function panics, every Get panics with the same
+// value.
+//
+// If the function calls runtime.Goexit, Get panics with a
+// *runtime.PanicNilError, and every later Get panics too. This is the
+// behaviour of sync.OnceValue.
 //
 // Equivalents: Rust LazyLock, Haskell lazy evaluation.
 type Lazy[T any] struct {
@@ -14,8 +19,8 @@ type Lazy[T any] struct {
 // NewLazy returns a Lazy that computes f on the first Get.
 func NewLazy[T any](f func() T) Lazy[T] { return Lazy[T]{get: sync.OnceValue(f)} }
 
-// LazyOf returns a Lazy for a function that can fail. The error is cached
-// too, so a failed computation does not run again.
+// LazyOf returns a Lazy for a function that can fail. The Lazy caches the
+// error too, so a failed computation does not run again.
 func LazyOf[T any](f func() (T, error)) Lazy[Result[T]] {
 	g := sync.OnceValues(f)
 	return Lazy[Result[T]]{get: func() Result[T] { return Of(g()) }}
