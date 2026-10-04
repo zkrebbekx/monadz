@@ -3,6 +3,9 @@
 Monads for Go 1.27: `Option`, `Result`, `Either`, `Validation`, `Patch`,
 `Lazy`, `Task`, `State`, `Reader`, and `Writer`.
 
+**Try it in your browser:** the [interactive playground](https://zkrebbekx.github.io/monadz/) runs the real
+library, compiled to WebAssembly. Change an input and watch each step.
+
 Monadz matches the `Option` and `Result` APIs of Rust and the core monads of
 Haskell. It uses Go 1.27 generic methods, so a pipeline reads left to right
 and can change the type at each step:
