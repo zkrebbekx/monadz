@@ -1,8 +1,5 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
-    <img src="docs/assets/logo-light.png" alt="monadz logo: two boxes joined by a chain link, above an Ok track and an Err track that switches away" width="220">
-  </picture>
+  <img src="docs/assets/cover.png" alt="monadz: values in boxes ride along an Ok track; at a track switch, one box drops to the Err track" width="100%">
 </p>
 
 # monadz
