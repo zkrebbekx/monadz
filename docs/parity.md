@@ -1,13 +1,13 @@
 # Parity with Rust and Haskell
 
-This page maps the standard Rust and Haskell operations to lift. A dash (—)
-means that lift has no equivalent, and the "Note" column says why.
+This page maps the standard Rust and Haskell operations to monadz. A dash (—)
+means that monadz has no equivalent, and the "Note" column says why.
 
 ## Rust `Option<T>`
 
-| Rust | lift | Note |
+| Rust | monadz | Note |
 |------|------|------|
-| `Some(v)`, `None` | `lift.Some(v)`, `lift.None[T]()` | |
+| `Some(v)`, `None` | `monadz.Some(v)`, `monadz.None[T]()` | |
 | `is_some`, `is_none` | `IsSome`, `IsNone` | |
 | `is_some_and`, `is_none_or` | `IsSomeAnd`, `IsNoneOr` | |
 | `expect`, `unwrap` | `Expect`, `Must` | |
@@ -27,9 +27,9 @@ means that lift has no equivalent, and the "Note" column says why.
 | `transpose` | `options.Transpose` | |
 | `iter` | `All` | returns `iter.Seq[T]` |
 | `?` operator | `Try` inside `DoOption` or `Do` | |
-| `bool::then_some`, `bool::then` | `lift.When`, `lift.WhenFunc` | |
-| `slice::get` | `lift.At` | negative index counts from the end |
-| `HashMap::get` | `lift.Lookup` | |
+| `bool::then_some`, `bool::then` | `monadz.When`, `monadz.WhenFunc` | |
+| `slice::get` | `monadz.At` | negative index counts from the end |
+| `HashMap::get` | `monadz.Lookup` | |
 | `collect::<Option<Vec<_>>>` | `options.Collect` | |
 | `Iterator::find`, `next`, `last`, `max`, `min` | `options.Find`, `Head`, `Last`, `Max`, `Min` | |
 | `filter_map`, `flatten` (iterator) | `options.FilterMap`, `options.Values` | |
@@ -38,10 +38,10 @@ means that lift has no equivalent, and the "Note" column says why.
 
 ## Rust `Result<T, E>`
 
-| Rust | lift | Note |
+| Rust | monadz | Note |
 |------|------|------|
-| `Ok(v)`, `Err(e)` | `lift.Ok(v)`, `lift.Err[T](e)` | `Err(nil)` is still a failure |
-| — | `lift.Of(v, err)`, `lift.FromErr(err)` | adapt Go `(T, error)` |
+| `Ok(v)`, `Err(e)` | `monadz.Ok(v)`, `monadz.Err[T](e)` | `Err(nil)` is still a failure |
+| — | `monadz.Of(v, err)`, `monadz.FromErr(err)` | adapt Go `(T, error)` |
 | `is_ok`, `is_err`, `is_ok_and`, `is_err_and` | `IsOk`, `IsErr`, `IsOkAnd`, `IsErrAnd` | |
 | `ok`, `err` | `Ok`, `Err` | `Err` returns `error`, Go style |
 | `expect`, `unwrap`, `unwrap_err` | `Expect`, `Must`, `MustErr` | |
@@ -57,11 +57,11 @@ means that lift has no equivalent, and the "Note" column says why.
 | `?` operator | `Try` inside `Do` | |
 | `collect::<Result<Vec<_>, _>>` | `results.Collect`, `results.FromSeq2` | |
 | anyhow `context` | `Wrap`, `Wrapf` | keeps `errors.Is` |
-| `std::panic::catch_unwind` | `lift.DoRecover` | `*PanicError` keeps the stack |
+| `std::panic::catch_unwind` | `monadz.DoRecover` | `*PanicError` keeps the stack |
 
 ## Haskell type classes
 
-| Haskell | lift | Note |
+| Haskell | monadz | Note |
 |---------|------|------|
 | `fmap`, `<$>` | `Map` | on every type |
 | `pure`, `return` | `Some`, `Ok`, `Right`, `Valid`, `TaskOf`, `StateOf`, `ReaderOf`, `NewWriter` | |
@@ -90,9 +90,9 @@ means that lift has no equivalent, and the "Note" column says why.
 | Monad transformers (`ExceptT`, `ReaderT`, …) | — | `Task` already combines context (Reader), errors (Except), and I/O |
 | `Cont`, `STM` | — | not useful in Go |
 
-## Where lift goes further
+## Where monadz goes further
 
-| Feature | Rust / Haskell | lift |
+| Feature | Rust / Haskell | monadz |
 |---------|----------------|------|
 | Cancel the losers of a race or a failed `All` | Rust: drop the futures; Haskell async: yes | yes, and wait for them to stop |
 | A panic in a concurrent task | Rust: the task's `JoinError`; Haskell: rethrown | rethrown in the waiting goroutine with the original stack |

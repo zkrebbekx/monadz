@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"context"
@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 func TestOnceWaiterContext(t *testing.T) {
 	t.Run("Given a Once task whose first run blocks", func(t *testing.T) {
 		release := make(chan struct{})
 		started := make(chan struct{})
-		task := lift.NewTask(func(context.Context) (int, error) {
+		task := monadz.NewTask(func(context.Context) (int, error) {
 			close(started)
 			<-release
 			return 7, nil

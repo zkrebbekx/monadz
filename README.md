@@ -1,29 +1,29 @@
-# lift
+# monadz
 
 Monads for Go 1.27: `Option`, `Result`, `Either`, `Validation`, `Patch`,
 `Lazy`, `Task`, `State`, `Reader`, and `Writer`.
 
-Lift matches the `Option` and `Result` APIs of Rust and the core monads of
+Monadz matches the `Option` and `Result` APIs of Rust and the core monads of
 Haskell. It uses Go 1.27 generic methods, so a pipeline reads left to right
 and can change the type at each step:
 
 ```go
-port := lift.Lookup(env, "PORT").    // Option[string]
+port := monadz.Lookup(env, "PORT").    // Option[string]
 	OkOr(ErrNoPort).                 // Result[string]
 	Then(strconv.Atoi).              // Result[int]
 	Ensure(validPort, ErrBadPort)    // Result[int]
 ```
 
 ```sh
-go get github.com/zkrebbekx/lift
+go get github.com/zkrebbekx/monadz
 ```
 
-Lift needs Go 1.27 or later. It has no dependencies outside the standard
+Monadz needs Go 1.27 or later. It has no dependencies outside the standard
 library (goconvey is a test-only dependency).
 
-## Why lift
+## Why monadz
 
-| Goal | What lift does |
+| Goal | What monadz does |
 |------|----------------|
 | Use the shapes Go code already has | `Result.Then` takes `func(T) (U, error)`. `Option.Then` takes `func(T) (U, bool)`. `strconv.Atoi`, `url.Parse`, and map lookups plug in with no adapter. |
 | A bug must crash | `Do` recovers only its own early-exit signal. A nil dereference still crashes. `DoRecover` is the explicit opt-in. |
@@ -54,12 +54,12 @@ Rust and Haskell, and [docs/from-mo.md](docs/from-mo.md) if you use
 ## Option
 
 ```go
-seats := lift.Lookup(planSeats, tenant.Plan). // Option[int]
+seats := monadz.Lookup(planSeats, tenant.Plan). // Option[int]
 	Filter(func(n int) bool { return n > 0 }).
 	ValueOr(DefaultSeats)
 
 // Map lookups chain with Then, because a lookup returns (V, bool).
-limit := lift.Some(tenantID).
+limit := monadz.Some(tenantID).
 	Then(lookupIn(planOf)).   // Option[string]
 	Then(lookupIn(limits))    // Option[int]
 
@@ -75,8 +75,8 @@ keeps `Some(0)`.
 ## Result
 
 ```go
-func LoadInvoice(ctx context.Context, id string) lift.Result[Invoice] {
-	return lift.Of(repo.Find(ctx, id)).        // Result[Row]
+func LoadInvoice(ctx context.Context, id string) monadz.Result[Invoice] {
+	return monadz.Of(repo.Find(ctx, id)).        // Result[Row]
 		Wrap("load invoice").                  // add context to the error
 		Then(decodeRow).                       // func(Row) (Invoice, error)
 		Ensure(Invoice.IsOpen, ErrClosed).
@@ -97,14 +97,14 @@ Inside `Do`, call `Try()` on a `Result` or an `Option`. On a failure, `Try`
 stops the block and `Do` returns the error:
 
 ```go
-inv := lift.Do(func() Invoice {
+inv := monadz.Do(func() Invoice {
 	cust := repo.Customer(ctx, id).Try()
-	plan := lift.Lookup(plans, cust.PlanID).OkOr(ErrNoPlan).Try()
+	plan := monadz.Lookup(plans, cust.PlanID).OkOr(ErrNoPlan).Try()
 	return rate(cust, plan)
 })
 ```
 
-Lift has two variants. They differ only in how they treat a panic that is
+Monadz has two variants. They differ only in how they treat a panic that is
 NOT a `Try` signal:
 
 | Function | A failed `Try` | A real panic (a bug) |
@@ -115,7 +115,7 @@ NOT a `Try` signal:
 Use `Do` by default. Use `DoRecover` at a boundary where a crash costs more
 than one failed request, for example an HTTP handler or a queue consumer.
 
-Lift does not use the name `MustDo`. In Go, `Must` means "panic if this
+Monadz does not use the name `MustDo`. In Go, `Must` means "panic if this
 fails" (`regexp.MustCompile`). A `MustDo` that recovers panics would mean the
 opposite. `Must()` stays a method with the normal meaning: return the value,
 or panic.
@@ -128,7 +128,7 @@ or panic.
 Use `Either` when both outcomes are valid and carry data:
 
 ```go
-func Check(t Tenant, f Feature) lift.Either[Paywall, Grant] { ... }
+func Check(t Tenant, f Feature) monadz.Either[Paywall, Grant] { ... }
 
 resp := Check(tenant, SSO).Match(
 	func(p Paywall) Response { return upgradeOffer(p) },  // HTTP 402
@@ -153,7 +153,7 @@ signup := validations.Map3(
 // Invalid(email: not an email; password: too short)
 ```
 
-Each error is a `*lift.FieldError`, so an API can map it to the field.
+Each error is a `*monadz.FieldError`, so an API can map it to the field.
 
 ## Patch
 
@@ -162,8 +162,8 @@ A JSON PATCH body has three states per field. An `Option` cannot tell
 
 ```go
 type UpdateTenant struct {
-	Name lift.Patch[string] `json:"name,omitzero"`
-	Logo lift.Patch[string] `json:"logo,omitzero"`
+	Name monadz.Patch[string] `json:"name,omitzero"`
+	Logo monadz.Patch[string] `json:"logo,omitzero"`
 }
 
 // {"logo": null}  ->  Name is Missing (keep), Logo is Null (clear)
@@ -179,13 +179,13 @@ A `Task` describes work. Nothing runs until `Run`. You can run it again, so
 retry and timeout are methods:
 
 ```go
-charge := lift.NewTask(func(ctx context.Context) (ChargeID, error) {
+charge := monadz.NewTask(func(ctx context.Context) (ChargeID, error) {
 	return payments.Charge(ctx, req) // same idempotency key on every attempt
 }).
 	Timeout(5 * time.Second).
-	Retry(lift.RetryPolicy{
+	Retry(monadz.RetryPolicy{
 		MaxAttempts: 4,
-		Backoff:     lift.ExponentialBackoff(200*time.Millisecond, 5*time.Second),
+		Backoff:     monadz.ExponentialBackoff(200*time.Millisecond, 5*time.Second),
 		RetryIf:     isTransient,
 	})
 
@@ -210,18 +210,18 @@ Every function returns only after every task that it started has stopped.
 
 ```go
 // A pure, replayable rate limiter step.
-allow := refill(now).AndThen(func(lift.Unit) lift.State[Bucket, bool] {
+allow := refill(now).AndThen(func(monadz.Unit) monadz.State[Bucket, bool] {
 	return take(cost)
 })
 decision, nextBucket := allow.Run(bucket)
 
 // Dependencies through a Reader.
-greeting := lift.Asks(func(c Config) string { return c.Brand }).
+greeting := monadz.Asks(func(c Config) string { return c.Brand }).
 	Map(func(b string) string { return "Welcome to " + b })
 greeting.Run(cfg)
 
 // An audit log through a Writer.
-w := lift.Tell(AuditEntry{"plan changed"}).AndThen(...)
+w := monadz.Tell(AuditEntry{"plan changed"}).AndThen(...)
 value, entries := w.Run()
 ```
 

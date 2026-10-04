@@ -1,10 +1,10 @@
-package lift_test
+package monadz_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 // eitBucket is the state of a token bucket rate limiter.
@@ -14,16 +14,16 @@ type eitBucket struct {
 }
 
 // eitRefill adds n tokens, up to the capacity.
-func eitRefill(n int) lift.State[eitBucket, lift.Unit] {
-	return lift.ModifyState(func(b eitBucket) eitBucket {
+func eitRefill(n int) monadz.State[eitBucket, monadz.Unit] {
+	return monadz.ModifyState(func(b eitBucket) eitBucket {
 		b.Tokens = min(b.Tokens+n, b.Capacity)
 		return b
 	})
 }
 
 // eitTake takes one token if there is one, and reports whether it did.
-func eitTake() lift.State[eitBucket, bool] {
-	return lift.NewState(func(b eitBucket) (bool, eitBucket) {
+func eitTake() monadz.State[eitBucket, bool] {
+	return monadz.NewState(func(b eitBucket) (bool, eitBucket) {
 		if b.Tokens == 0 {
 			return false, b
 		}
@@ -33,9 +33,9 @@ func eitTake() lift.State[eitBucket, bool] {
 }
 
 // eitNextLine returns the next invoice line and increments the line counter.
-func eitNextLine(desc string) lift.State[int, string] {
-	return lift.GetState[int]().AndThen(func(n int) lift.State[int, string] {
-		return lift.PutState(n + 1).Then(lift.StateOf[int](fmt.Sprintf("%03d %s", n, desc)))
+func eitNextLine(desc string) monadz.State[int, string] {
+	return monadz.GetState[int]().AndThen(func(n int) monadz.State[int, string] {
+		return monadz.PutState(n + 1).Then(monadz.StateOf[int](fmt.Sprintf("%03d %s", n, desc)))
 	})
 }
 
@@ -43,41 +43,41 @@ func TestStatePrimitives(t *testing.T) {
 	t.Run("Given a start state of 5", func(t *testing.T) {
 		const start = 5
 		t.Run("When StateOf runs", func(t *testing.T) {
-			a, s := lift.StateOf[int]("v").Run(start)
+			a, s := monadz.StateOf[int]("v").Run(start)
 			t.Run("Then it returns the value and keeps the state", func(t *testing.T) {
 				eitEq(t, a, "v")
 				eitEq(t, s, 5)
 			})
 		})
 		t.Run("When GetState runs", func(t *testing.T) {
-			a, s := lift.GetState[int]().Run(start)
+			a, s := monadz.GetState[int]().Run(start)
 			t.Run("Then the value is the state", func(t *testing.T) {
 				eitEq(t, a, 5)
 				eitEq(t, s, 5)
 			})
 		})
 		t.Run("When PutState(9) runs", func(t *testing.T) {
-			a, s := lift.PutState(9).Run(start)
+			a, s := monadz.PutState(9).Run(start)
 			t.Run("Then the state is replaced and the value is Unit", func(t *testing.T) {
-				eitEq(t, a, lift.Unit{})
+				eitEq(t, a, monadz.Unit{})
 				eitEq(t, s, 9)
 			})
 		})
 		t.Run("When ModifyState doubles the state", func(t *testing.T) {
-			s := lift.ModifyState(eitDouble).Exec(start)
+			s := monadz.ModifyState(eitDouble).Exec(start)
 			t.Run("Then the state is 10", func(t *testing.T) {
 				eitEq(t, s, 10)
 			})
 		})
 		t.Run("When GetsState reads a projection", func(t *testing.T) {
-			a, s := lift.GetsState(func(n int) string { return fmt.Sprint(n * n) }).Run(start)
+			a, s := monadz.GetsState(func(n int) string { return fmt.Sprint(n * n) }).Run(start)
 			t.Run("Then the value is the projection and the state does not change", func(t *testing.T) {
 				eitEq(t, a, "25")
 				eitEq(t, s, 5)
 			})
 		})
 		t.Run("When NewState wraps a function and Eval and Exec run it", func(t *testing.T) {
-			m := lift.NewState(func(s int) (string, int) { return fmt.Sprint(s), s + 1 })
+			m := monadz.NewState(func(s int) (string, int) { return fmt.Sprint(s), s + 1 })
 			t.Run("Then Eval returns only the value and Exec only the state", func(t *testing.T) {
 				eitEq(t, m.Eval(start), "5")
 				eitEq(t, m.Exec(start), 6)
@@ -88,7 +88,7 @@ func TestStatePrimitives(t *testing.T) {
 
 func TestStateCombinators(t *testing.T) {
 	t.Run("Given a step that returns the state and increments it", func(t *testing.T) {
-		tick := lift.NewState(func(s int) (int, int) { return s, s + 1 })
+		tick := monadz.NewState(func(s int) (int, int) { return s, s + 1 })
 		t.Run("When Map formats the value", func(t *testing.T) {
 			a, s := tick.Map(func(n int) string { return fmt.Sprintf("#%d", n) }).Run(1)
 			t.Run("Then the value is mapped and the state still advances", func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestStateCombinators(t *testing.T) {
 			})
 		})
 		t.Run("When AndThen chains two ticks", func(t *testing.T) {
-			m := tick.AndThen(func(a int) lift.State[int, [2]int] {
+			m := tick.AndThen(func(a int) monadz.State[int, [2]int] {
 				return tick.Map(func(b int) [2]int { return [2]int{a, b} })
 			})
 			a, s := m.Run(10)
@@ -115,7 +115,7 @@ func TestStateCombinators(t *testing.T) {
 		})
 		t.Run("When a State is built and not run", func(t *testing.T) {
 			calls := 0
-			m := lift.NewState(func(s int) (int, int) { calls++; return s, s }).Map(eitDouble)
+			m := monadz.NewState(func(s int) (int, int) { calls++; return s, s }).Map(eitDouble)
 			before := calls
 			m.Run(1)
 			t.Run("Then nothing runs until Run", func(t *testing.T) {
@@ -128,9 +128,9 @@ func TestStateCombinators(t *testing.T) {
 
 func TestStateTokenBucket(t *testing.T) {
 	t.Run("Given a token bucket program: take, take, take, refill 2, take", func(t *testing.T) {
-		program := eitTake().AndThen(func(a bool) lift.State[eitBucket, []bool] {
-			return eitTake().AndThen(func(b bool) lift.State[eitBucket, []bool] {
-				return eitTake().AndThen(func(c bool) lift.State[eitBucket, []bool] {
+		program := eitTake().AndThen(func(a bool) monadz.State[eitBucket, []bool] {
+			return eitTake().AndThen(func(b bool) monadz.State[eitBucket, []bool] {
+				return eitTake().AndThen(func(c bool) monadz.State[eitBucket, []bool] {
 					return eitRefill(2).Then(eitTake().Map(func(d bool) []bool {
 						return []bool{a, b, c, d}
 					}))
@@ -164,8 +164,8 @@ func TestStateTokenBucket(t *testing.T) {
 
 func TestStateInvoiceLines(t *testing.T) {
 	t.Run("Given an invoice program that numbers three lines", func(t *testing.T) {
-		program := eitNextLine("widget").AndThen(func(a string) lift.State[int, []string] {
-			return eitNextLine("gadget").AndThen(func(b string) lift.State[int, []string] {
+		program := eitNextLine("widget").AndThen(func(a string) monadz.State[int, []string] {
+			return eitNextLine("gadget").AndThen(func(b string) monadz.State[int, []string] {
 				return eitNextLine("shipping").Map(func(c string) []string { return []string{a, b, c} })
 			})
 		})

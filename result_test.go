@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 var resErrBoom = errors.New("boom")
@@ -26,7 +26,7 @@ func resRecover(f func()) (p any) {
 func TestResultConstructors(t *testing.T) {
 	t.Run("Given the Result constructors", func(t *testing.T) {
 		t.Run("When Ok is called with 7", func(t *testing.T) {
-			r := lift.Ok(7)
+			r := monadz.Ok(7)
 			t.Run("Then the Result is a success that holds 7", func(t *testing.T) {
 				resEq(t, r.IsOk(), true)
 				resEq(t, r.IsErr(), false)
@@ -37,50 +37,50 @@ func TestResultConstructors(t *testing.T) {
 			})
 		})
 		t.Run("When Err is called with a non-nil error", func(t *testing.T) {
-			r := lift.Err[int](resErrBoom)
+			r := monadz.Err[int](resErrBoom)
 			t.Run("Then the Result is a failure that holds the error", func(t *testing.T) {
 				resEq(t, r.IsErr(), true)
 				resEq(t, r.Err(), resErrBoom)
 			})
 		})
 		t.Run("When Err is called with a nil error", func(t *testing.T) {
-			r := lift.Err[int](nil)
+			r := monadz.Err[int](nil)
 			t.Run("Then the Result is a failure that holds ErrNilError", func(t *testing.T) {
 				resEq(t, r.IsOk(), false)
-				resEq(t, errors.Is(r.Err(), lift.ErrNilError), true)
+				resEq(t, errors.Is(r.Err(), monadz.ErrNilError), true)
 			})
 		})
 		t.Run("When Errf is called with a format", func(t *testing.T) {
-			r := lift.Errf[int]("bad %d: %w", 3, resErrBoom)
+			r := monadz.Errf[int]("bad %d: %w", 3, resErrBoom)
 			t.Run("Then the error has the formatted message and wraps the cause", func(t *testing.T) {
 				resEq(t, r.Err().Error(), "bad 3: boom")
 				resEq(t, errors.Is(r.Err(), resErrBoom), true)
 			})
 		})
 		t.Run("When Of is called with a nil error", func(t *testing.T) {
-			r := lift.Of(strconv.Atoi("42"))
+			r := monadz.Of(strconv.Atoi("42"))
 			t.Run("Then the Result is Ok(42)", func(t *testing.T) {
 				resEq(t, r.Must(), 42)
 			})
 		})
 		t.Run("When Of is called with a non-nil error", func(t *testing.T) {
-			r := lift.Of(strconv.Atoi("x"))
+			r := monadz.Of(strconv.Atoi("x"))
 			t.Run("Then the Result is a failure with the *strconv.NumError", func(t *testing.T) {
 				var ne *strconv.NumError
 				resEq(t, errors.As(r.Err(), &ne), true)
 			})
 		})
 		t.Run("When FromErr is called with nil and with an error", func(t *testing.T) {
-			ok := lift.FromErr(nil)
-			bad := lift.FromErr(resErrBoom)
+			ok := monadz.FromErr(nil)
+			bad := monadz.FromErr(resErrBoom)
 			t.Run("Then nil gives Ok(Unit) and the error gives a failure", func(t *testing.T) {
 				resEq(t, ok.IsOk(), true)
-				resDeep(t, ok.Must(), lift.Unit{})
+				resDeep(t, ok.Must(), monadz.Unit{})
 				resEq(t, bad.Err(), resErrBoom)
 			})
 		})
 		t.Run("When the zero value of Result is used", func(t *testing.T) {
-			var r lift.Result[string]
+			var r monadz.Result[string]
 			t.Run("Then it is Ok of the zero value", func(t *testing.T) {
 				resEq(t, r.IsOk(), true)
 				resEq(t, r.Must(), "")
@@ -91,8 +91,8 @@ func TestResultConstructors(t *testing.T) {
 
 func TestResultQueries(t *testing.T) {
 	t.Run("Given an Ok(4) and an Err(boom)", func(t *testing.T) {
-		ok := lift.Ok(4)
-		bad := lift.Err[int](resErrBoom)
+		ok := monadz.Ok(4)
+		bad := monadz.Err[int](resErrBoom)
 		even := func(n int) bool { return n%2 == 0 }
 		isBoom := func(err error) bool { return errors.Is(err, resErrBoom) }
 		t.Run("When IsOkAnd and IsErrAnd are called", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestResultQueries(t *testing.T) {
 			})
 		})
 		t.Run("When Get is called on the failure", func(t *testing.T) {
-			v, err := lift.Err[string](resErrBoom).Get()
+			v, err := monadz.Err[string](resErrBoom).Get()
 			t.Run("Then it returns the zero value and the error", func(t *testing.T) {
 				resEq(t, v, "")
 				resEq(t, err, resErrBoom)
@@ -123,8 +123,8 @@ func TestResultQueries(t *testing.T) {
 
 func TestResultExtraction(t *testing.T) {
 	t.Run("Given an Ok(5) and an Err(boom)", func(t *testing.T) {
-		ok := lift.Ok(5)
-		bad := lift.Err[int](resErrBoom)
+		ok := monadz.Ok(5)
+		bad := monadz.Err[int](resErrBoom)
 		t.Run("When Must is called", func(t *testing.T) {
 			t.Run("Then Ok returns 5 and Err panics with the error", func(t *testing.T) {
 				resEq(t, ok.Must(), 5)
@@ -144,7 +144,7 @@ func TestResultExtraction(t *testing.T) {
 		t.Run("When MustErr is called", func(t *testing.T) {
 			t.Run("Then Err returns the error and Ok panics", func(t *testing.T) {
 				resEq(t, bad.MustErr(), resErrBoom)
-				resPanicWith(t, func() { ok.MustErr() }, "lift: MustErr on Ok(5)")
+				resPanicWith(t, func() { ok.MustErr() }, "monadz: MustErr on Ok(5)")
 			})
 		})
 		t.Run("When ValueOr is called", func(t *testing.T) {
@@ -175,32 +175,32 @@ func TestResultExtraction(t *testing.T) {
 func TestResultTransformation(t *testing.T) {
 	t.Run("Given a pipeline of steps", func(t *testing.T) {
 		t.Run("When Then applies strconv.Atoi to Ok(\"12\")", func(t *testing.T) {
-			r := lift.Ok("12").Then(strconv.Atoi)
+			r := monadz.Ok("12").Then(strconv.Atoi)
 			t.Run("Then the Result is Ok(12)", func(t *testing.T) {
 				resEq(t, r.Must(), 12)
 			})
 		})
 		t.Run("When Then applies strconv.Atoi to Ok(\"x\")", func(t *testing.T) {
-			r := lift.Ok("x").Then(strconv.Atoi)
+			r := monadz.Ok("x").Then(strconv.Atoi)
 			t.Run("Then the Result is a failure", func(t *testing.T) {
 				resEq(t, r.IsErr(), true)
 			})
 		})
 		t.Run("When Map and AndThen run on Ok values", func(t *testing.T) {
-			r := lift.Ok(3).
+			r := monadz.Ok(3).
 				Map(func(n int) string { return strconv.Itoa(n * 2) }).
-				AndThen(func(s string) lift.Result[string] { return lift.Ok(s + "!") })
+				AndThen(func(s string) monadz.Result[string] { return monadz.Ok(s + "!") })
 			t.Run("Then each step changes the value", func(t *testing.T) {
 				resEq(t, r.Must(), "6!")
 			})
 		})
 		t.Run("When the first step fails", func(t *testing.T) {
 			calls := 0
-			r := lift.Ok("x").
+			r := monadz.Ok("x").
 				Then(strconv.Atoi).
 				Map(func(n int) int { calls++; return n }).
 				Then(func(n int) (int, error) { calls++; return n, nil }).
-				AndThen(func(n int) lift.Result[int] { calls++; return lift.Ok(n) }).
+				AndThen(func(n int) monadz.Result[int] { calls++; return monadz.Ok(n) }).
 				Inspect(func(int) { calls++ })
 			t.Run("Then no later step function is called", func(t *testing.T) {
 				resEq(t, calls, 0)
@@ -209,13 +209,13 @@ func TestResultTransformation(t *testing.T) {
 			})
 		})
 		t.Run("When AndThen returns a failure", func(t *testing.T) {
-			r := lift.Ok(1).AndThen(func(int) lift.Result[int] { return lift.Err[int](resErrBoom) })
+			r := monadz.Ok(1).AndThen(func(int) monadz.Result[int] { return monadz.Err[int](resErrBoom) })
 			t.Run("Then the chain is a failure", func(t *testing.T) {
 				resEq(t, r.Err(), resErrBoom)
 			})
 		})
 		t.Run("When MapErr, Wrap, and Wrapf change the error", func(t *testing.T) {
-			bad := lift.Err[int](resErrBoom)
+			bad := monadz.Err[int](resErrBoom)
 			mapped := bad.MapErr(func(e error) error { return fmt.Errorf("mapped: %w", e) })
 			wrapped := bad.Wrap("load")
 			wrappedf := bad.Wrapf("load %s", "cfg")
@@ -229,13 +229,13 @@ func TestResultTransformation(t *testing.T) {
 			})
 		})
 		t.Run("When MapErr returns nil", func(t *testing.T) {
-			r := lift.Err[int](resErrBoom).MapErr(func(error) error { return nil })
+			r := monadz.Err[int](resErrBoom).MapErr(func(error) error { return nil })
 			t.Run("Then the Result stays a failure with ErrNilError", func(t *testing.T) {
-				resEq(t, errors.Is(r.Err(), lift.ErrNilError), true)
+				resEq(t, errors.Is(r.Err(), monadz.ErrNilError), true)
 			})
 		})
 		t.Run("When MapErr, Wrap, and Wrapf run on Ok", func(t *testing.T) {
-			ok := lift.Ok(1)
+			ok := monadz.Ok(1)
 			t.Run("Then the Result does not change and MapErr's function is not called", func(t *testing.T) {
 				resEq(t, ok.MapErr(func(error) error { panic("not called") }).Must(), 1)
 				resEq(t, ok.Wrap("x").Must(), 1)
@@ -245,22 +245,22 @@ func TestResultTransformation(t *testing.T) {
 		t.Run("When Ensure checks a predicate", func(t *testing.T) {
 			positive := func(n int) bool { return n > 0 }
 			t.Run("Then a passing value stays Ok", func(t *testing.T) {
-				resEq(t, lift.Ok(1).Ensure(positive, resErrBoom).Must(), 1)
+				resEq(t, monadz.Ok(1).Ensure(positive, resErrBoom).Must(), 1)
 			})
 			t.Run("Then a failing value becomes Err(err)", func(t *testing.T) {
-				resEq(t, lift.Ok(-1).Ensure(positive, resErrBoom).Err(), resErrBoom)
+				resEq(t, monadz.Ok(-1).Ensure(positive, resErrBoom).Err(), resErrBoom)
 			})
 			t.Run("Then a failing value with a nil err becomes ErrNilError", func(t *testing.T) {
-				resEq(t, errors.Is(lift.Ok(-1).Ensure(positive, nil).Err(), lift.ErrNilError), true)
+				resEq(t, errors.Is(monadz.Ok(-1).Ensure(positive, nil).Err(), monadz.ErrNilError), true)
 			})
 			t.Run("Then a failure keeps its error and the predicate is not called", func(t *testing.T) {
-				r := lift.Err[int](resErrBoom).Ensure(func(int) bool { panic("not called") }, errors.New("other"))
+				r := monadz.Err[int](resErrBoom).Ensure(func(int) bool { panic("not called") }, errors.New("other"))
 				resEq(t, r.Err(), resErrBoom)
 			})
 		})
 		t.Run("When MapOr, MapOrElse, and Match run", func(t *testing.T) {
-			ok := lift.Ok(2)
-			bad := lift.Err[int](resErrBoom)
+			ok := monadz.Ok(2)
+			bad := monadz.Err[int](resErrBoom)
 			double := func(n int) string { return strconv.Itoa(n * 2) }
 			onErr := func(e error) string { return "err:" + e.Error() }
 			t.Run("Then each picks the function of its track", func(t *testing.T) {
@@ -274,8 +274,8 @@ func TestResultTransformation(t *testing.T) {
 		})
 		t.Run("When Inspect and InspectErr run", func(t *testing.T) {
 			var seen []string
-			ok := lift.Ok(1).Inspect(func(n int) { seen = append(seen, "ok") }).InspectErr(func(error) { seen = append(seen, "okerr") })
-			bad := lift.Err[int](resErrBoom).Inspect(func(int) { seen = append(seen, "bad") }).InspectErr(func(e error) { seen = append(seen, e.Error()) })
+			ok := monadz.Ok(1).Inspect(func(n int) { seen = append(seen, "ok") }).InspectErr(func(error) { seen = append(seen, "okerr") })
+			bad := monadz.Err[int](resErrBoom).Inspect(func(int) { seen = append(seen, "bad") }).InspectErr(func(e error) { seen = append(seen, e.Error()) })
 			t.Run("Then only the function of the matching track runs, and the Result does not change", func(t *testing.T) {
 				resDeep(t, seen, []string{"ok", "boom"})
 				resEq(t, ok.Must(), 1)
@@ -287,20 +287,20 @@ func TestResultTransformation(t *testing.T) {
 
 func TestResultRecovery(t *testing.T) {
 	t.Run("Given an Ok(1) and an Err(boom)", func(t *testing.T) {
-		ok := lift.Ok(1)
-		bad := lift.Err[int](resErrBoom)
+		ok := monadz.Ok(1)
+		bad := monadz.Err[int](resErrBoom)
 		other := errors.New("other")
 		t.Run("When Or is called", func(t *testing.T) {
 			t.Run("Then Ok keeps itself and Err gives the other Result", func(t *testing.T) {
-				resEq(t, ok.Or(lift.Ok(2)).Must(), 1)
-				resEq(t, bad.Or(lift.Ok(2)).Must(), 2)
-				resEq(t, bad.Or(lift.Err[int](other)).Err(), other)
+				resEq(t, ok.Or(monadz.Ok(2)).Must(), 1)
+				resEq(t, bad.Or(monadz.Ok(2)).Must(), 2)
+				resEq(t, bad.Or(monadz.Err[int](other)).Err(), other)
 			})
 		})
 		t.Run("When OrElse is called", func(t *testing.T) {
 			t.Run("Then the function runs only for Err and receives the error", func(t *testing.T) {
-				resEq(t, ok.OrElse(func(error) lift.Result[int] { panic("not called") }).Must(), 1)
-				r := bad.OrElse(func(e error) lift.Result[int] { return lift.Ok(len(e.Error())) })
+				resEq(t, ok.OrElse(func(error) monadz.Result[int] { panic("not called") }).Must(), 1)
+				r := bad.OrElse(func(e error) monadz.Result[int] { return monadz.Ok(len(e.Error())) })
 				resEq(t, r.Must(), 4)
 			})
 		})
@@ -321,17 +321,17 @@ func TestResultCombination(t *testing.T) {
 		other := errors.New("other")
 		t.Run("When And is called", func(t *testing.T) {
 			t.Run("Then Ok gives the other Result and Err keeps its failure", func(t *testing.T) {
-				resEq(t, lift.Ok(1).And(lift.Ok("a")).Must(), "a")
-				resEq(t, lift.Ok(1).And(lift.Err[string](other)).Err(), other)
-				resEq(t, lift.Err[int](resErrBoom).And(lift.Ok("a")).Err(), resErrBoom)
+				resEq(t, monadz.Ok(1).And(monadz.Ok("a")).Must(), "a")
+				resEq(t, monadz.Ok(1).And(monadz.Err[string](other)).Err(), other)
+				resEq(t, monadz.Err[int](resErrBoom).And(monadz.Ok("a")).Err(), resErrBoom)
 			})
 		})
 		t.Run("When ZipWith is called", func(t *testing.T) {
 			join := func(n int, s string) string { return strconv.Itoa(n) + s }
 			t.Run("Then two Oks combine and the first failure wins", func(t *testing.T) {
-				resEq(t, lift.Ok(1).ZipWith(lift.Ok("a"), join).Must(), "1a")
-				resEq(t, lift.Err[int](resErrBoom).ZipWith(lift.Err[string](other), join).Err(), resErrBoom)
-				resEq(t, lift.Ok(1).ZipWith(lift.Err[string](other), join).Err(), other)
+				resEq(t, monadz.Ok(1).ZipWith(monadz.Ok("a"), join).Must(), "1a")
+				resEq(t, monadz.Err[int](resErrBoom).ZipWith(monadz.Err[string](other), join).Err(), resErrBoom)
+				resEq(t, monadz.Ok(1).ZipWith(monadz.Err[string](other), join).Err(), other)
 			})
 		})
 	})
@@ -339,8 +339,8 @@ func TestResultCombination(t *testing.T) {
 
 func TestResultConversion(t *testing.T) {
 	t.Run("Given an Ok(3) and an Err(boom)", func(t *testing.T) {
-		ok := lift.Ok(3)
-		bad := lift.Err[int](resErrBoom)
+		ok := monadz.Ok(3)
+		bad := monadz.Err[int](resErrBoom)
 		t.Run("When Either is called", func(t *testing.T) {
 			t.Run("Then Ok gives Right and Err gives Left", func(t *testing.T) {
 				resEq(t, ok.Either().IsRight(), true)
@@ -384,8 +384,8 @@ func TestResultConversion(t *testing.T) {
 
 func TestResultFormatting(t *testing.T) {
 	t.Run("Given an Ok(3) and an Err(boom)", func(t *testing.T) {
-		ok := lift.Ok(3)
-		bad := lift.Err[int](resErrBoom)
+		ok := monadz.Ok(3)
+		bad := monadz.Err[int](resErrBoom)
 		t.Run("When String is called", func(t *testing.T) {
 			t.Run("Then it gives Ok(3) and Err(boom)", func(t *testing.T) {
 				resEq(t, ok.String(), "Ok(3)")

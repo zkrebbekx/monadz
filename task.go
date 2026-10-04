@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 // ErrZeroTask is the error from Run on a zero Task.
-var ErrZeroTask = errors.New("lift: Run on a zero Task; use NewTask")
+var ErrZeroTask = errors.New("monadz: Run on a zero Task; use NewTask")
 
 // Task is a description of work that can fail and that takes a context.
 // Nothing runs until you call Run or Start. You can run a Task many times;
@@ -214,7 +214,7 @@ func (t Task[T]) Timeout(d time.Duration) Task[T] {
 			if err := parent.Err(); err != nil {
 				return Err[T](err) // the caller's ctx ended; this is not a timeout
 			}
-			return Err[T](fmt.Errorf("lift: task timed out after %v: %w", d, ctx.Err()))
+			return Err[T](fmt.Errorf("monadz: task timed out after %v: %w", d, ctx.Err()))
 		}
 	})
 }
@@ -281,11 +281,11 @@ func (t Task[T]) Retry(p RetryPolicy) Task[T] {
 				return r
 			}
 			if attempt >= max(p.MaxAttempts, 1) || ctx.Err() != nil || !retryable(p, r.err) {
-				return Err[T](fmt.Errorf("lift: gave up after %d attempt(s): %w", attempt, r.err))
+				return Err[T](fmt.Errorf("monadz: gave up after %d attempt(s): %w", attempt, r.err))
 			}
 			if p.Backoff != nil {
 				if err := Sleep(ctx, p.Backoff(attempt)); err != nil {
-					return Err[T](fmt.Errorf("lift: retry stopped after %d attempt(s): %w", attempt, errors.Join(err, r.err)))
+					return Err[T](fmt.Errorf("monadz: retry stopped after %d attempt(s): %w", attempt, errors.Join(err, r.err)))
 				}
 			}
 		}

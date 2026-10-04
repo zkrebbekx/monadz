@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
-	"github.com/zkrebbekx/lift/results"
+	"github.com/zkrebbekx/monadz"
+	"github.com/zkrebbekx/monadz/results"
 )
 
 var (
@@ -60,36 +60,36 @@ func resPairs(vals []int, errs []error) iter.Seq2[int, error] {
 func TestZip(t *testing.T) {
 	t.Run("Given Results of different types", func(t *testing.T) {
 		t.Run("When Zip gets two Oks", func(t *testing.T) {
-			got := results.Zip(lift.Ok(1), lift.Ok("a"))
+			got := results.Zip(monadz.Ok(1), monadz.Ok("a"))
 			t.Run("Then it returns Ok of the Pair", func(t *testing.T) {
-				resEq(t, got.Must(), lift.PairOf(1, "a"))
+				resEq(t, got.Must(), monadz.PairOf(1, "a"))
 			})
 		})
 		t.Run("When Zip gets two failures", func(t *testing.T) {
-			got := results.Zip(lift.Err[int](resErrA), lift.Err[string](resErrB))
+			got := results.Zip(monadz.Err[int](resErrA), monadz.Err[string](resErrB))
 			t.Run("Then the first failure wins", func(t *testing.T) {
 				resEq(t, got.Err(), resErrA)
-				resEq(t, results.Zip(lift.Ok(1), lift.Err[string](resErrB)).Err(), resErrB)
+				resEq(t, results.Zip(monadz.Ok(1), monadz.Err[string](resErrB)).Err(), resErrB)
 			})
 		})
 		t.Run("When Zip3 gets three Oks", func(t *testing.T) {
-			got := results.Zip3(lift.Ok(1), lift.Ok("a"), lift.Ok(true))
+			got := results.Zip3(monadz.Ok(1), monadz.Ok("a"), monadz.Ok(true))
 			t.Run("Then it returns Ok of the Triple", func(t *testing.T) {
-				resEq(t, got.Must(), lift.TripleOf(1, "a", true))
+				resEq(t, got.Must(), monadz.TripleOf(1, "a", true))
 			})
 		})
 		t.Run("When Map3 gets failures in different positions", func(t *testing.T) {
 			sum := func(a, b, c int) int { return a + b + c }
 			t.Run("Then the first failure in argument order wins", func(t *testing.T) {
-				resEq(t, results.Map3(lift.Ok(1), lift.Ok(2), lift.Ok(3), sum).Must(), 6)
-				resEq(t, results.Map3(lift.Err[int](resErrA), lift.Err[int](resErrB), lift.Err[int](resErrC), sum).Err(), resErrA)
-				resEq(t, results.Map3(lift.Ok(1), lift.Err[int](resErrB), lift.Err[int](resErrC), sum).Err(), resErrB)
-				resEq(t, results.Map3(lift.Ok(1), lift.Ok(2), lift.Err[int](resErrC), sum).Err(), resErrC)
-				resEq(t, results.Zip3(lift.Ok(1), lift.Ok(2), lift.Err[int](resErrC)).Err(), resErrC)
+				resEq(t, results.Map3(monadz.Ok(1), monadz.Ok(2), monadz.Ok(3), sum).Must(), 6)
+				resEq(t, results.Map3(monadz.Err[int](resErrA), monadz.Err[int](resErrB), monadz.Err[int](resErrC), sum).Err(), resErrA)
+				resEq(t, results.Map3(monadz.Ok(1), monadz.Err[int](resErrB), monadz.Err[int](resErrC), sum).Err(), resErrB)
+				resEq(t, results.Map3(monadz.Ok(1), monadz.Ok(2), monadz.Err[int](resErrC), sum).Err(), resErrC)
+				resEq(t, results.Zip3(monadz.Ok(1), monadz.Ok(2), monadz.Err[int](resErrC)).Err(), resErrC)
 			})
 			t.Run("Then f is not called on a failure", func(t *testing.T) {
 				called := false
-				results.Map3(lift.Ok(1), lift.Ok(2), lift.Err[int](resErrC), func(a, b, c int) int { called = true; return 0 })
+				results.Map3(monadz.Ok(1), monadz.Ok(2), monadz.Err[int](resErrC), func(a, b, c int) int { called = true; return 0 })
 				resEq(t, called, false)
 			})
 		})
@@ -100,25 +100,25 @@ func TestFlattenTranspose(t *testing.T) {
 	t.Run("Given nested Results", func(t *testing.T) {
 		t.Run("When Flatten runs", func(t *testing.T) {
 			t.Run("Then it removes one level, and an outer or inner failure stays", func(t *testing.T) {
-				resEq(t, results.Flatten(lift.Ok(lift.Ok(1))).Must(), 1)
-				resEq(t, results.Flatten(lift.Ok(lift.Err[int](resErrA))).Err(), resErrA)
-				resEq(t, results.Flatten(lift.Err[lift.Result[int]](resErrB)).Err(), resErrB)
+				resEq(t, results.Flatten(monadz.Ok(monadz.Ok(1))).Must(), 1)
+				resEq(t, results.Flatten(monadz.Ok(monadz.Err[int](resErrA))).Err(), resErrA)
+				resEq(t, results.Flatten(monadz.Err[monadz.Result[int]](resErrB)).Err(), resErrB)
 			})
 		})
 		t.Run("When Transpose runs on Ok(None)", func(t *testing.T) {
-			got := results.Transpose(lift.Ok(lift.None[int]()))
+			got := results.Transpose(monadz.Ok(monadz.None[int]()))
 			t.Run("Then it returns None", func(t *testing.T) {
 				resEq(t, got.IsNone(), true)
 			})
 		})
 		t.Run("When Transpose runs on Ok(Some(5))", func(t *testing.T) {
-			got := results.Transpose(lift.Ok(lift.Some(5)))
+			got := results.Transpose(monadz.Ok(monadz.Some(5)))
 			t.Run("Then it returns Some(Ok(5))", func(t *testing.T) {
 				resEq(t, got.Must().Must(), 5)
 			})
 		})
 		t.Run("When Transpose runs on Err(a)", func(t *testing.T) {
-			got := results.Transpose(lift.Err[lift.Option[int]](resErrA))
+			got := results.Transpose(monadz.Err[monadz.Option[int]](resErrA))
 			t.Run("Then it returns Some(Err(a))", func(t *testing.T) {
 				resEq(t, got.Must().Err(), resErrA)
 			})
@@ -137,12 +137,12 @@ func TestLiftCompose(t *testing.T) {
 		})
 		t.Run("When Compose joins two steps", func(t *testing.T) {
 			calls := 0
-			half := func(n int) lift.Result[int] {
+			half := func(n int) monadz.Result[int] {
 				calls++
 				if n%2 != 0 {
-					return lift.Err[int](resErrA)
+					return monadz.Err[int](resErrA)
 				}
-				return lift.Ok(n / 2)
+				return monadz.Ok(n / 2)
 			}
 			f := results.Compose(atoi, half)
 			t.Run("Then the steps run in order and a failure skips the second step", func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestLiftCompose(t *testing.T) {
 func TestCollect(t *testing.T) {
 	t.Run("Given a sequence of Results", func(t *testing.T) {
 		t.Run("When every Result is Ok", func(t *testing.T) {
-			seq, n := resCounting(lift.Ok(1), lift.Ok(2), lift.Ok(3))
+			seq, n := resCounting(monadz.Ok(1), monadz.Ok(2), monadz.Ok(3))
 			got := results.Collect(seq)
 			t.Run("Then Collect returns Ok of all values", func(t *testing.T) {
 				resDeep(t, got.Must(), []int{1, 2, 3})
@@ -167,7 +167,7 @@ func TestCollect(t *testing.T) {
 			})
 		})
 		t.Run("When the second Result fails", func(t *testing.T) {
-			seq, n := resCounting(lift.Ok(1), lift.Err[int](resErrA), lift.Ok(3), lift.Err[int](resErrB))
+			seq, n := resCounting(monadz.Ok(1), monadz.Err[int](resErrA), monadz.Ok(3), monadz.Err[int](resErrB))
 			got := results.Collect(seq)
 			t.Run("Then Collect returns the first error and reads no further", func(t *testing.T) {
 				resEq(t, got.Err(), resErrA)
@@ -175,7 +175,7 @@ func TestCollect(t *testing.T) {
 			})
 		})
 		t.Run("When the sequence is empty", func(t *testing.T) {
-			got := results.Collect(slices.Values([]lift.Result[int]{}))
+			got := results.Collect(slices.Values([]monadz.Result[int]{}))
 			t.Run("Then Collect returns Ok of an empty, non-nil slice", func(t *testing.T) {
 				resDeep(t, got.Must(), []int{})
 			})
@@ -237,12 +237,12 @@ func TestTraverseFold(t *testing.T) {
 		})
 		t.Run("When Traverse meets a failure", func(t *testing.T) {
 			calls := 0
-			f := func(s string) lift.Result[int] {
+			f := func(s string) monadz.Result[int] {
 				calls++
 				if s == "bad" {
-					return lift.Err[int](resErrA)
+					return monadz.Err[int](resErrA)
 				}
-				return lift.Ok(len(s))
+				return monadz.Ok(len(s))
 			}
 			got := results.Traverse(slices.Values([]string{"x", "bad", "y"}), f)
 			t.Run("Then it returns the error and does not call f again", func(t *testing.T) {
@@ -257,8 +257,8 @@ func TestTraverseFold(t *testing.T) {
 			})
 		})
 		t.Run("When Fold sums numbers", func(t *testing.T) {
-			add := func(acc int, s string) lift.Result[int] {
-				return lift.Of(strconv.Atoi(s)).Map(func(n int) int { return acc + n })
+			add := func(acc int, s string) monadz.Result[int] {
+				return monadz.Of(strconv.Atoi(s)).Map(func(n int) int { return acc + n })
 			}
 			t.Run("Then it returns the sum, or the first failure", func(t *testing.T) {
 				resEq(t, results.Fold(slices.Values([]string{"1", "2", "3"}), 10, add).Must(), 16)
@@ -271,7 +271,7 @@ func TestTraverseFold(t *testing.T) {
 
 func TestPartitionOksErrs(t *testing.T) {
 	t.Run("Given a mixed sequence of Results", func(t *testing.T) {
-		rs := []lift.Result[int]{lift.Ok(1), lift.Err[int](resErrA), lift.Ok(2), lift.Err[int](resErrB)}
+		rs := []monadz.Result[int]{monadz.Ok(1), monadz.Err[int](resErrA), monadz.Ok(2), monadz.Err[int](resErrB)}
 		t.Run("When Partition runs", func(t *testing.T) {
 			oks, errs := results.Partition(slices.Values(rs))
 			t.Run("Then it splits the values and errors in order", func(t *testing.T) {
@@ -311,13 +311,13 @@ func TestPartitionOksErrs(t *testing.T) {
 func TestFirst(t *testing.T) {
 	t.Run("Given First with different arguments", func(t *testing.T) {
 		t.Run("When one Result is Ok", func(t *testing.T) {
-			got := results.First(lift.Err[int](resErrA), lift.Ok(2), lift.Ok(3))
+			got := results.First(monadz.Err[int](resErrA), monadz.Ok(2), monadz.Ok(3))
 			t.Run("Then it returns the first Ok", func(t *testing.T) {
 				resEq(t, got.Must(), 2)
 			})
 		})
 		t.Run("When every Result fails", func(t *testing.T) {
-			got := results.First(lift.Err[int](resErrA), lift.Err[int](resErrB))
+			got := results.First(monadz.Err[int](resErrA), monadz.Err[int](resErrB))
 			t.Run("Then it returns all errors joined", func(t *testing.T) {
 				resEq(t, errors.Is(got.Err(), resErrA), true)
 				resEq(t, errors.Is(got.Err(), resErrB), true)

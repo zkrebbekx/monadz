@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 func TestFuture(t *testing.T) {
@@ -15,7 +15,7 @@ func TestFuture(t *testing.T) {
 	t.Run("Given a Task that blocks until the test releases it", func(t *testing.T) {
 		release := make(chan struct{})
 		started := make(chan struct{})
-		tk := lift.NewTask(func(context.Context) (int, error) {
+		tk := monadz.NewTask(func(context.Context) (int, error) {
 			close(started)
 			<-release
 			return 4, nil
@@ -62,7 +62,7 @@ func TestFuture(t *testing.T) {
 
 	t.Run("Given a started Task that fails", func(t *testing.T) {
 		t.Run("When Await is called", func(t *testing.T) {
-			r := lift.TaskErr[int](tskErrBoom).Start(ctx).Await()
+			r := monadz.TaskErr[int](tskErrBoom).Start(ctx).Await()
 			t.Run("Then it returns the error", func(t *testing.T) {
 				if r.Err() != tskErrBoom {
 					t.Errorf("got %v, want %v", r.Err(), tskErrBoom)
@@ -72,7 +72,7 @@ func TestFuture(t *testing.T) {
 	})
 
 	t.Run("Given a started Task that panics with an error", func(t *testing.T) {
-		f := lift.NewTask(func(context.Context) (int, error) { panic(tskErrBoom) }).Start(ctx)
+		f := monadz.NewTask(func(context.Context) (int, error) { panic(tskErrBoom) }).Start(ctx)
 		<-f.Done()
 		t.Run("When Await and Poll are called", func(t *testing.T) {
 			p := tskMustPanic(t, func() { f.Await() })
@@ -80,7 +80,7 @@ func TestFuture(t *testing.T) {
 			t.Run("Then both re-panic a *PanicError with the original stack", func(t *testing.T) {
 				tskPanicError(t, p, error(tskErrBoom))
 				tskPanicError(t, pp, error(tskErrBoom))
-				pe := p.(*lift.PanicError)
+				pe := p.(*monadz.PanicError)
 				if !errors.Is(pe, tskErrBoom) {
 					t.Error("got errors.Is false, want the panic error reachable")
 				}
@@ -112,7 +112,7 @@ func TestFuture(t *testing.T) {
 
 	t.Run("Given a started Task that succeeds", func(t *testing.T) {
 		t.Run("When AwaitContext is called", func(t *testing.T) {
-			r := lift.TaskOf(6).Start(ctx).AwaitContext(ctx)
+			r := monadz.TaskOf(6).Start(ctx).AwaitContext(ctx)
 			t.Run("Then it returns the result", func(t *testing.T) { tskEq(t, "value", r.Must(), 6) })
 		})
 	})
@@ -122,7 +122,7 @@ func TestFuture(t *testing.T) {
 		cancel()
 		t.Run("When Start is called", func(t *testing.T) {
 			ran := false
-			r := lift.NewTask(func(context.Context) (int, error) { ran = true; return 1, nil }).Start(c).Await()
+			r := monadz.NewTask(func(context.Context) (int, error) { ran = true; return 1, nil }).Start(c).Await()
 			t.Run("Then the work does not run", func(t *testing.T) {
 				if ran {
 					t.Error("got the work run, want it not started")

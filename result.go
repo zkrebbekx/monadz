@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ func Errf[T any](format string, args ...any) Result[T] {
 	return Err[T](fmt.Errorf(format, args...))
 }
 
-// Of converts a Go (value, error) pair: lift.Of(strconv.Atoi(s)).
+// Of converts a Go (value, error) pair: monadz.Of(strconv.Atoi(s)).
 func Of[T any](v T, err error) Result[T] {
 	if err != nil {
 		return failed[T](err)
@@ -37,7 +37,7 @@ func Of[T any](v T, err error) Result[T] {
 }
 
 // FromErr converts a function that returns only an error:
-// lift.FromErr(db.PingContext(ctx)).
+// monadz.FromErr(db.PingContext(ctx)).
 func FromErr(err error) Result[Unit] { return Of(Unit{}, err) }
 
 // ---- Queries ----
@@ -92,7 +92,7 @@ func (r Result[T]) Expect(msg string) T {
 // MustErr returns the error, or panics for a success. (Rust: unwrap_err.)
 func (r Result[T]) MustErr() error {
 	if r.err == nil {
-		panic(fmt.Sprintf("lift: MustErr on Ok(%v)", r.value))
+		panic(fmt.Sprintf("monadz: MustErr on Ok(%v)", r.value))
 	}
 	return r.err
 }

@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import "fmt"
 
@@ -6,13 +6,15 @@ import "fmt"
 type earlyErr struct{ err error }
 
 func (e *earlyErr) Error() string {
-	return fmt.Sprintf("lift: Result.Try failed outside lift.Do: %v", e.err)
+	return fmt.Sprintf("monadz: Result.Try failed outside monadz.Do: %v", e.err)
 }
 
 // earlyNone is the signal that Option.Try sends to Do or DoOption.
 type earlyNone struct{}
 
-func (*earlyNone) Error() string { return "lift: Option.Try got None outside lift.Do or lift.DoOption" }
+func (*earlyNone) Error() string {
+	return "monadz: Option.Try got None outside monadz.Do or monadz.DoOption"
+}
 
 var noneSignal = &earlyNone{}
 
@@ -21,7 +23,7 @@ var noneSignal = &earlyNone{}
 // stops f at once and Do returns the error. This is Go's version of Rust's
 // "?" operator and Haskell's do notation:
 //
-//	lift.Do(func() Invoice {
+//	monadz.Do(func() Invoice {
 //		cust := repo.Customer(ctx, id).Try()
 //		plan := plans.Lookup(cust.PlanID).OkOr(ErrNoPlan).Try()
 //		return rate(cust, plan)

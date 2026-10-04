@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import "slices"
 

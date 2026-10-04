@@ -1,10 +1,10 @@
-package lift_test
+package monadz_test
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 // eitConfig is a shared environment for Reader tests.
@@ -14,27 +14,27 @@ type eitConfig struct {
 	Prefix string
 }
 
-func eitAddr() lift.Reader[eitConfig, string] {
-	return lift.Asks(func(c eitConfig) string { return fmt.Sprintf("%s:%d", c.Host, c.Port) })
+func eitAddr() monadz.Reader[eitConfig, string] {
+	return monadz.Asks(func(c eitConfig) string { return fmt.Sprintf("%s:%d", c.Host, c.Port) })
 }
 
 func TestReaderPrimitives(t *testing.T) {
 	t.Run("Given an environment", func(t *testing.T) {
 		env := eitConfig{Host: "db", Port: 5432, Prefix: "/v1"}
 		t.Run("When NewReader wraps a function", func(t *testing.T) {
-			r := lift.NewReader(func(c eitConfig) int { return c.Port + 1 })
+			r := monadz.NewReader(func(c eitConfig) int { return c.Port + 1 })
 			t.Run("Then Run calls it with the environment", func(t *testing.T) {
 				eitEq(t, r.Run(env), 5433)
 			})
 		})
 		t.Run("When ReaderOf runs", func(t *testing.T) {
 			t.Run("Then it ignores the environment", func(t *testing.T) {
-				eitEq(t, lift.ReaderOf[eitConfig]("const").Run(env), "const")
+				eitEq(t, monadz.ReaderOf[eitConfig]("const").Run(env), "const")
 			})
 		})
 		t.Run("When Ask runs", func(t *testing.T) {
 			t.Run("Then the value is the environment", func(t *testing.T) {
-				eitEq(t, lift.Ask[eitConfig]().Run(env), env)
+				eitEq(t, monadz.Ask[eitConfig]().Run(env), env)
 			})
 		})
 		t.Run("When Asks runs", func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestReaderPrimitives(t *testing.T) {
 		})
 		t.Run("When a Reader is built and not run", func(t *testing.T) {
 			calls := 0
-			r := lift.NewReader(func(eitConfig) int { calls++; return 0 }).Map(eitDouble)
+			r := monadz.NewReader(func(eitConfig) int { calls++; return 0 }).Map(eitDouble)
 			before := calls
 			r.Run(env)
 			t.Run("Then nothing runs until Run", func(t *testing.T) {
@@ -66,8 +66,8 @@ func TestReaderCombinators(t *testing.T) {
 		})
 		t.Run("When AndThen builds a URL from the address", func(t *testing.T) {
 			var seen []eitConfig
-			url := eitAddr().AndThen(func(addr string) lift.Reader[eitConfig, string] {
-				return lift.NewReader(func(c eitConfig) string {
+			url := eitAddr().AndThen(func(addr string) monadz.Reader[eitConfig, string] {
+				return monadz.NewReader(func(c eitConfig) string {
 					seen = append(seen, c)
 					return "http://" + addr + c.Prefix
 				})
@@ -80,7 +80,7 @@ func TestReaderCombinators(t *testing.T) {
 		})
 		t.Run("When Local changes the port for an inner Reader", func(t *testing.T) {
 			admin := eitAddr().Local(func(c eitConfig) eitConfig { c.Port = 9000; return c })
-			both := admin.AndThen(func(a string) lift.Reader[eitConfig, [2]string] {
+			both := admin.AndThen(func(a string) monadz.Reader[eitConfig, [2]string] {
 				return eitAddr().Map(func(b string) [2]string { return [2]string{a, b} })
 			})
 			got := both.Run(env)

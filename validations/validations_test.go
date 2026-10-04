@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
-	"github.com/zkrebbekx/lift/validations"
+	"github.com/zkrebbekx/monadz"
+	"github.com/zkrebbekx/monadz/validations"
 )
 
 func resEq[T comparable](t *testing.T, got, want T) {
@@ -35,19 +35,19 @@ func resErrs(n int) []error {
 }
 
 // resV returns Valid(i), or Invalid(err) when err is not nil.
-func resV(i int, err error) lift.Validation[int] {
+func resV(i int, err error) monadz.Validation[int] {
 	if err != nil {
-		return lift.Invalid[int](err)
+		return monadz.Invalid[int](err)
 	}
-	return lift.Valid(i)
+	return monadz.Valid(i)
 }
 
 func TestMapN(t *testing.T) {
 	t.Run("Given the Map2 ... Map6 functions", func(t *testing.T) {
 		e := resErrs(6)
 		// call runs MapN with the arity n. errs[i] makes argument i Invalid.
-		call := func(n int, errs []error, called *bool) lift.Validation[int] {
-			v := func(i int) lift.Validation[int] { return resV(i+1, errs[i]) }
+		call := func(n int, errs []error, called *bool) monadz.Validation[int] {
+			v := func(i int) monadz.Validation[int] { return resV(i+1, errs[i]) }
 			switch n {
 			case 2:
 				return validations.Map2(v(0), v(1), func(a, b int) int { *called = true; return a + b })
@@ -92,7 +92,7 @@ func TestMapN(t *testing.T) {
 			})
 		}
 		t.Run("When an argument holds two errors", func(t *testing.T) {
-			got := validations.Map2(lift.Invalid[int](e[0], e[1]), lift.Invalid[string](e[2]), func(int, string) bool { return true })
+			got := validations.Map2(monadz.Invalid[int](e[0], e[1]), monadz.Invalid[string](e[2]), func(int, string) bool { return true })
 			t.Run("Then every error of every argument is kept", func(t *testing.T) {
 				resDeep(t, got.Errors(), []error{e[0], e[1], e[2]})
 			})
@@ -104,7 +104,7 @@ func TestCollectTraverse(t *testing.T) {
 	t.Run("Given a sequence of Validations", func(t *testing.T) {
 		e := resErrs(3)
 		t.Run("When every Validation is Valid", func(t *testing.T) {
-			got := validations.Collect(slices.Values([]lift.Validation[int]{lift.Valid(1), lift.Valid(2)}))
+			got := validations.Collect(slices.Values([]monadz.Validation[int]{monadz.Valid(1), monadz.Valid(2)}))
 			t.Run("Then Collect returns Valid of all values", func(t *testing.T) {
 				v, err := got.Get()
 				resEq(t, err, nil)
@@ -112,7 +112,7 @@ func TestCollectTraverse(t *testing.T) {
 			})
 		})
 		t.Run("When the sequence is empty", func(t *testing.T) {
-			got := validations.Collect(slices.Values([]lift.Validation[int]{}))
+			got := validations.Collect(slices.Values([]monadz.Validation[int]{}))
 			t.Run("Then Collect returns Valid of an empty, non-nil slice", func(t *testing.T) {
 				v, _ := got.Get()
 				resDeep(t, v, []int{})
@@ -120,8 +120,8 @@ func TestCollectTraverse(t *testing.T) {
 		})
 		t.Run("When some Validations are Invalid", func(t *testing.T) {
 			read := 0
-			seq := func(yield func(lift.Validation[int]) bool) {
-				for _, v := range []lift.Validation[int]{lift.Invalid[int](e[0]), lift.Valid(1), lift.Invalid[int](e[1], e[2])} {
+			seq := func(yield func(monadz.Validation[int]) bool) {
+				for _, v := range []monadz.Validation[int]{monadz.Invalid[int](e[0]), monadz.Valid(1), monadz.Invalid[int](e[1], e[2])} {
 					read++
 					if !yield(v) {
 						return
@@ -136,9 +136,9 @@ func TestCollectTraverse(t *testing.T) {
 		})
 		t.Run("When Traverse checks each item", func(t *testing.T) {
 			calls := 0
-			positive := func(n int) lift.Validation[int] {
+			positive := func(n int) monadz.Validation[int] {
 				calls++
-				return lift.Check(n*10, n > 0, fmt.Errorf("bad %d", n))
+				return monadz.Check(n*10, n > 0, fmt.Errorf("bad %d", n))
 			}
 			ok := validations.Traverse(slices.Values([]int{1, 2}), positive)
 			bad := validations.Traverse(slices.Values([]int{-1, 2, -3}), positive)
@@ -156,13 +156,13 @@ func TestErrors(t *testing.T) {
 	t.Run("Given independent checks with no value", func(t *testing.T) {
 		e := resErrs(2)
 		t.Run("When every check passes", func(t *testing.T) {
-			got := validations.Errors(lift.Valid(lift.Unit{}), lift.Valid(lift.Unit{}))
+			got := validations.Errors(monadz.Valid(monadz.Unit{}), monadz.Valid(monadz.Unit{}))
 			t.Run("Then Errors returns nil", func(t *testing.T) {
 				resEq(t, got == nil, true)
 			})
 		})
 		t.Run("When two checks fail", func(t *testing.T) {
-			got := validations.Errors(lift.Invalid[lift.Unit](e[0]), lift.Valid(lift.Unit{}), lift.Invalid[lift.Unit](e[1]))
+			got := validations.Errors(monadz.Invalid[monadz.Unit](e[0]), monadz.Valid(monadz.Unit{}), monadz.Invalid[monadz.Unit](e[1]))
 			t.Run("Then Errors returns both errors in order", func(t *testing.T) {
 				resDeep(t, got, e)
 				resEq(t, errors.Is(errors.Join(got...), e[1]), true)

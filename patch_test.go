@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"encoding/json"
@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 type optPatchReq struct {
-	Name lift.Patch[string] `json:"name,omitzero"`
-	Age  lift.Patch[int]    `json:"age,omitzero"`
+	Name monadz.Patch[string] `json:"name,omitzero"`
+	Age  monadz.Patch[int]    `json:"age,omitzero"`
 }
 
 func TestPatchStates(t *testing.T) {
 	t.Run("Given the three Patch constructors", func(t *testing.T) {
-		set, null, missing := lift.PatchSet(5), lift.PatchNull[int](), lift.PatchMissing[int]()
+		set, null, missing := monadz.PatchSet(5), monadz.PatchNull[int](), monadz.PatchMissing[int]()
 		t.Run("When the states are queried", func(t *testing.T) {
 			t.Run("Then each Patch reports only its own state", func(t *testing.T) {
 				optEq(t, []bool{set.IsSet(), set.IsNull(), set.IsMissing()}, []bool{true, false, false})
@@ -27,18 +27,18 @@ func TestPatchStates(t *testing.T) {
 				optEq(t, missing.IsZero(), true)
 				optEq(t, null.IsZero(), false)
 				optEq(t, set.IsZero(), false)
-				optEq(t, lift.PatchSet(0).IsZero(), false)
+				optEq(t, monadz.PatchSet(0).IsZero(), false)
 			})
 			t.Run("Then the zero value of Patch is Missing", func(t *testing.T) {
-				var p lift.Patch[int]
+				var p monadz.Patch[int]
 				optEq(t, p.IsMissing(), true)
 				optEq(t, p, missing)
 			})
 		})
 		t.Run("When Value is called", func(t *testing.T) {
 			t.Run("Then Set gives Some and the others give None", func(t *testing.T) {
-				optEq(t, set.Value(), lift.Some(5))
-				optEq(t, lift.PatchSet(0).Value(), lift.Some(0))
+				optEq(t, set.Value(), monadz.Some(5))
+				optEq(t, monadz.PatchSet(0).Value(), monadz.Some(0))
 				optEq(t, null.Value().IsNone(), true)
 				optEq(t, missing.Value().IsNone(), true)
 			})
@@ -58,35 +58,35 @@ func TestPatchApply(t *testing.T) {
 		t.Run("When Apply is called", func(t *testing.T) {
 			t.Run("Then Set stores the value", func(t *testing.T) {
 				dst := 9
-				lift.PatchSet(3).Apply(&dst)
+				monadz.PatchSet(3).Apply(&dst)
 				optEq(t, dst, 3)
 			})
 			t.Run("Then Null stores the zero value", func(t *testing.T) {
 				dst := 9
-				lift.PatchNull[int]().Apply(&dst)
+				monadz.PatchNull[int]().Apply(&dst)
 				optEq(t, dst, 0)
 			})
 			t.Run("Then Missing does nothing", func(t *testing.T) {
 				dst := 9
-				lift.PatchMissing[int]().Apply(&dst)
+				monadz.PatchMissing[int]().Apply(&dst)
 				optEq(t, dst, 9)
 			})
 		})
 		t.Run("When ApplyOption is called", func(t *testing.T) {
 			t.Run("Then Set stores Some", func(t *testing.T) {
-				dst := lift.Some(9)
-				lift.PatchSet(3).ApplyOption(&dst)
-				optEq(t, dst, lift.Some(3))
+				dst := monadz.Some(9)
+				monadz.PatchSet(3).ApplyOption(&dst)
+				optEq(t, dst, monadz.Some(3))
 			})
 			t.Run("Then Null stores None", func(t *testing.T) {
-				dst := lift.Some(9)
-				lift.PatchNull[int]().ApplyOption(&dst)
+				dst := monadz.Some(9)
+				monadz.PatchNull[int]().ApplyOption(&dst)
 				optEq(t, dst.IsNone(), true)
 			})
 			t.Run("Then Missing does nothing", func(t *testing.T) {
-				dst := lift.Some(9)
-				lift.PatchMissing[int]().ApplyOption(&dst)
-				optEq(t, dst, lift.Some(9))
+				dst := monadz.Some(9)
+				monadz.PatchMissing[int]().ApplyOption(&dst)
+				optEq(t, dst, monadz.Some(9))
 			})
 		})
 	})
@@ -116,7 +116,7 @@ func TestPatchJSON(t *testing.T) {
 				t.Run("Then null gives Null and a value gives Set, also for zero", func(t *testing.T) {
 					optEq(t, r.Name.IsNull(), true)
 					optEq(t, r.Age.IsSet(), true)
-					optEq(t, r.Age.Value(), lift.Some(0))
+					optEq(t, r.Age.Value(), monadz.Some(0))
 				})
 			})
 			t.Run("When the body is empty", func(t *testing.T) {
@@ -135,7 +135,7 @@ func TestPatchJSON(t *testing.T) {
 				})
 			})
 			t.Run("When a truncated null is decoded into a Patch", func(t *testing.T) {
-				var p lift.Patch[int]
+				var p monadz.Patch[int]
 				t.Run("Then decoding fails", func(t *testing.T) {
 					optNotNil(t, decode([]byte(`nul`), &p))
 				})
@@ -146,21 +146,21 @@ func TestPatchJSON(t *testing.T) {
 	for name, encode := range optPatchEncoders() {
 		t.Run("Given Patch values encoded with encoding/json "+name, func(t *testing.T) {
 			t.Run("When a request with Set and Missing fields is encoded", func(t *testing.T) {
-				b, err := encode(optPatchReq{Age: lift.PatchSet(0)})
+				b, err := encode(optPatchReq{Age: monadz.PatchSet(0)})
 				optNil(t, err)
 				t.Run("Then omitzero drops Missing and keeps Set(0)", func(t *testing.T) {
 					optEq(t, string(b), `{"age":0}`)
 				})
 			})
 			t.Run("When a request with a Null field is encoded", func(t *testing.T) {
-				b, err := encode(optPatchReq{Name: lift.PatchNull[string]()})
+				b, err := encode(optPatchReq{Name: monadz.PatchNull[string]()})
 				optNil(t, err)
 				t.Run("Then the Null field writes null", func(t *testing.T) {
 					optEq(t, string(b), `{"name":null}`)
 				})
 			})
 			t.Run("When a bare Missing Patch is encoded", func(t *testing.T) {
-				b, err := encode(lift.PatchMissing[int]())
+				b, err := encode(monadz.PatchMissing[int]())
 				optNil(t, err)
 				t.Run("Then it writes null", func(t *testing.T) {
 					optEq(t, string(b), "null")
@@ -171,9 +171,9 @@ func TestPatchJSON(t *testing.T) {
 
 	t.Run("Given Patch values for a round trip", func(t *testing.T) {
 		cases := []optPatchReq{
-			{Name: lift.PatchSet("bob"), Age: lift.PatchSet(3)},
-			{Name: lift.PatchNull[string](), Age: lift.PatchSet(0)},
-			{Name: lift.PatchSet(""), Age: lift.PatchNull[int]()},
+			{Name: monadz.PatchSet("bob"), Age: monadz.PatchSet(3)},
+			{Name: monadz.PatchNull[string](), Age: monadz.PatchSet(0)},
+			{Name: monadz.PatchSet(""), Age: monadz.PatchNull[int]()},
 			{},
 		}
 		for _, in := range cases {
@@ -197,33 +197,33 @@ func TestPatchJSON(t *testing.T) {
 
 	t.Run("Given a Set Patch", func(t *testing.T) {
 		t.Run("When UnmarshalJSON receives bad input", func(t *testing.T) {
-			p := lift.PatchSet(1)
+			p := monadz.PatchSet(1)
 			err := p.UnmarshalJSON([]byte(`"x"`))
 			t.Run("Then it gives an error and keeps the old Patch", func(t *testing.T) {
 				optNotNil(t, err)
-				optEq(t, p, lift.PatchSet(1))
+				optEq(t, p, monadz.PatchSet(1))
 			})
 		})
 		t.Run("When UnmarshalJSON receives null with spaces", func(t *testing.T) {
-			p := lift.PatchSet(1)
+			p := monadz.PatchSet(1)
 			optNil(t, p.UnmarshalJSON([]byte(" null\n")))
 			t.Run("Then it is Null", func(t *testing.T) {
 				optEq(t, p.IsNull(), true)
 			})
 		})
 		t.Run("When UnmarshalJSON receives a value", func(t *testing.T) {
-			p := lift.PatchNull[int]()
+			p := monadz.PatchNull[int]()
 			optNil(t, p.UnmarshalJSON([]byte("7")))
 			t.Run("Then it is Set", func(t *testing.T) {
-				optEq(t, p, lift.PatchSet(7))
+				optEq(t, p, monadz.PatchSet(7))
 			})
 		})
 		t.Run("When MarshalJSON is called directly", func(t *testing.T) {
 			t.Run("Then Set writes the value, and Null and Missing write null", func(t *testing.T) {
-				b, err := lift.PatchSet("a").MarshalJSON()
+				b, err := monadz.PatchSet("a").MarshalJSON()
 				optNil(t, err)
 				optEq(t, string(b), `"a"`)
-				for _, p := range []lift.Patch[string]{lift.PatchNull[string](), lift.PatchMissing[string]()} {
+				for _, p := range []monadz.Patch[string]{monadz.PatchNull[string](), monadz.PatchMissing[string]()} {
 					b, err = p.MarshalJSON()
 					optNil(t, err)
 					optEq(t, string(b), "null")

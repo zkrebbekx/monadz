@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import (
 	"errors"
@@ -8,12 +8,12 @@ import (
 
 // ErrNone is the error for a missing value: Option.Must on None, and
 // Option.Try on None inside Do.
-var ErrNone = errors.New("lift: value is None")
+var ErrNone = errors.New("monadz: value is None")
 
 // ErrNilError is the error that Err, Invalid, and similar constructors store
-// when you give them a nil error. A nil error cannot mean failure, so lift
+// when you give them a nil error. A nil error cannot mean failure, so monadz
 // replaces it with this error instead of returning a success by mistake.
-var ErrNilError = errors.New("lift: failure constructed with a nil error")
+var ErrNilError = errors.New("monadz: failure constructed with a nil error")
 
 // PanicError is a panic that DoRecover or a Task turned into a value.
 type PanicError struct {

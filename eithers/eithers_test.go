@@ -7,8 +7,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/zkrebbekx/lift"
-	"github.com/zkrebbekx/lift/eithers"
+	"github.com/zkrebbekx/monadz"
+	"github.com/zkrebbekx/monadz/eithers"
 )
 
 // eitEq fails the test if got and want are not deeply equal.
@@ -21,9 +21,9 @@ func eitEq(t *testing.T, got, want any) {
 
 // eitCounted returns a sequence over es and a counter of the values that
 // the sequence yielded.
-func eitCounted[L, R any](es ...lift.Either[L, R]) (iter.Seq[lift.Either[L, R]], *int) {
+func eitCounted[L, R any](es ...monadz.Either[L, R]) (iter.Seq[monadz.Either[L, R]], *int) {
 	n := 0
-	return func(yield func(lift.Either[L, R]) bool) {
+	return func(yield func(monadz.Either[L, R]) bool) {
 		for _, e := range es {
 			n++
 			if !yield(e) {
@@ -33,12 +33,12 @@ func eitCounted[L, R any](es ...lift.Either[L, R]) (iter.Seq[lift.Either[L, R]],
 	}, &n
 }
 
-func eitL(s string) lift.Either[string, int] { return lift.Left[string, int](s) }
-func eitR(n int) lift.Either[string, int]    { return lift.Right[string](n) }
+func eitL(s string) monadz.Either[string, int] { return monadz.Left[string, int](s) }
+func eitR(n int) monadz.Either[string, int]    { return monadz.Right[string](n) }
 
 func TestPartition(t *testing.T) {
 	t.Run("Given a mixed sequence of Lefts and Rights", func(t *testing.T) {
-		seq := slices.Values([]lift.Either[string, int]{eitR(1), eitL("a"), eitR(2), eitL("b"), eitR(3)})
+		seq := slices.Values([]monadz.Either[string, int]{eitR(1), eitL("a"), eitR(2), eitL("b"), eitR(3)})
 		t.Run("When Partition runs", func(t *testing.T) {
 			ls, rs := eithers.Partition(seq)
 			t.Run("Then it splits the values and keeps the order", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestPartition(t *testing.T) {
 	})
 	t.Run("Given an empty sequence", func(t *testing.T) {
 		t.Run("When Partition runs", func(t *testing.T) {
-			ls, rs := eithers.Partition(slices.Values([]lift.Either[string, int](nil)))
+			ls, rs := eithers.Partition(slices.Values([]monadz.Either[string, int](nil)))
 			t.Run("Then both slices are empty", func(t *testing.T) {
 				eitEq(t, len(ls)+len(rs), 0)
 			})
@@ -59,7 +59,7 @@ func TestPartition(t *testing.T) {
 
 func TestLeftsRights(t *testing.T) {
 	t.Run("Given a mixed sequence of Lefts and Rights", func(t *testing.T) {
-		all := []lift.Either[string, int]{eitL("a"), eitR(1), eitL("b"), eitR(2), eitL("c"), eitR(3)}
+		all := []monadz.Either[string, int]{eitL("a"), eitR(1), eitL("b"), eitR(2), eitL("c"), eitR(3)}
 		t.Run("When Lefts and Rights are collected", func(t *testing.T) {
 			ls := slices.Collect(eithers.Lefts(slices.Values(all)))
 			rs := slices.Collect(eithers.Rights(slices.Values(all)))
@@ -99,9 +99,9 @@ func TestLeftsRights(t *testing.T) {
 
 func TestFlatten(t *testing.T) {
 	t.Run("Given nested Eithers", func(t *testing.T) {
-		outerLeft := lift.Left[string, lift.Either[string, int]]("outer")
-		innerLeft := lift.Right[string](eitL("inner"))
-		innerRight := lift.Right[string](eitR(5))
+		outerLeft := monadz.Left[string, monadz.Either[string, int]]("outer")
+		innerLeft := monadz.Right[string](eitL("inner"))
+		innerRight := monadz.Right[string](eitR(5))
 		t.Run("When Flatten runs", func(t *testing.T) {
 			t.Run("Then an outer Left stays, and an outer Right gives the inner Either", func(t *testing.T) {
 				eitEq(t, eithers.Flatten(outerLeft), eitL("outer"))
@@ -116,13 +116,13 @@ func TestToResult(t *testing.T) {
 	errBad := errors.New("bad")
 	t.Run("Given Either[error, int] values", func(t *testing.T) {
 		t.Run("When ToResult converts a Right", func(t *testing.T) {
-			got := eithers.ToResult(lift.Right[error](4))
+			got := eithers.ToResult(monadz.Right[error](4))
 			t.Run("Then the result is Ok", func(t *testing.T) {
-				eitEq(t, got, lift.Ok(4))
+				eitEq(t, got, monadz.Ok(4))
 			})
 		})
 		t.Run("When ToResult converts a Left", func(t *testing.T) {
-			got := eithers.ToResult(lift.Left[error, int](errBad))
+			got := eithers.ToResult(monadz.Left[error, int](errBad))
 			t.Run("Then the result is Err with the same error", func(t *testing.T) {
 				if !errors.Is(got.Err(), errBad) {
 					t.Errorf("got err %v, want %v", got.Err(), errBad)
@@ -130,11 +130,11 @@ func TestToResult(t *testing.T) {
 			})
 		})
 		t.Run("When ToResult converts a Left of a nil error (the zero Either)", func(t *testing.T) {
-			var zero lift.Either[error, int]
+			var zero monadz.Either[error, int]
 			got := eithers.ToResult(zero)
 			t.Run("Then the result is Err(ErrNilError), not a success", func(t *testing.T) {
-				if !errors.Is(got.Err(), lift.ErrNilError) {
-					t.Errorf("got err %v, want %v", got.Err(), lift.ErrNilError)
+				if !errors.Is(got.Err(), monadz.ErrNilError) {
+					t.Errorf("got err %v, want %v", got.Err(), monadz.ErrNilError)
 				}
 			})
 		})
@@ -144,17 +144,17 @@ func TestToResult(t *testing.T) {
 func TestCollect(t *testing.T) {
 	t.Run("Given a sequence with only Rights", func(t *testing.T) {
 		t.Run("When Collect runs", func(t *testing.T) {
-			got := eithers.Collect(slices.Values([]lift.Either[string, int]{eitR(1), eitR(2)}))
+			got := eithers.Collect(slices.Values([]monadz.Either[string, int]{eitR(1), eitR(2)}))
 			t.Run("Then it returns Right of all values", func(t *testing.T) {
-				eitEq(t, got, lift.Right[string]([]int{1, 2}))
+				eitEq(t, got, monadz.Right[string]([]int{1, 2}))
 			})
 		})
 	})
 	t.Run("Given an empty sequence", func(t *testing.T) {
 		t.Run("When Collect runs", func(t *testing.T) {
-			got := eithers.Collect(slices.Values([]lift.Either[string, int](nil)))
+			got := eithers.Collect(slices.Values([]monadz.Either[string, int](nil)))
 			t.Run("Then it returns Right of an empty, non-nil slice", func(t *testing.T) {
-				eitEq(t, got, lift.Right[string]([]int{}))
+				eitEq(t, got, monadz.Right[string]([]int{}))
 			})
 		})
 	})
@@ -163,7 +163,7 @@ func TestCollect(t *testing.T) {
 		t.Run("When Collect runs", func(t *testing.T) {
 			got := eithers.Collect(seq)
 			t.Run("Then it returns the first Left and stops the source there", func(t *testing.T) {
-				eitEq(t, got, lift.Left[string, []int]("first"))
+				eitEq(t, got, monadz.Left[string, []int]("first"))
 				eitEq(t, *pulled, 2)
 			})
 		})

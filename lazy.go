@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import "sync"
 
@@ -25,7 +25,7 @@ func LazyOf[T any](f func() (T, error)) Lazy[Result[T]] {
 // after that.
 func (l Lazy[T]) Get() T {
 	if l.get == nil {
-		panic("lift: Get on a zero Lazy; use NewLazy")
+		panic("monadz: Get on a zero Lazy; use NewLazy")
 	}
 	return l.get()
 }

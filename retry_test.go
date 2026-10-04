@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"context"
@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 // tskCounter returns a Task that fails with errs[n-1] on run n (from 1) and
 // succeeds with the run number when errs has no more entries.
-func tskCounter(calls *atomic.Int32, errs ...error) lift.Task[int] {
-	return lift.NewTask(func(context.Context) (int, error) {
+func tskCounter(calls *atomic.Int32, errs ...error) monadz.Task[int] {
+	return monadz.NewTask(func(context.Context) (int, error) {
 		n := int(calls.Add(1))
 		if n <= len(errs) {
 			return 0, errs[n-1]
@@ -61,7 +61,7 @@ func TestTaskTimeout(t *testing.T) {
 	t.Run("Given a Task that ignores its ctx", func(t *testing.T) {
 		release := make(chan struct{})
 		finished := make(chan struct{})
-		tk := lift.NewTask(func(context.Context) (int, error) {
+		tk := monadz.NewTask(func(context.Context) (int, error) {
 			defer close(finished)
 			<-release
 			return 1, nil
@@ -85,7 +85,7 @@ func TestTaskTimeout(t *testing.T) {
 	t.Run("Given a Task that ignores its ctx and a 5s Timeout", func(t *testing.T) {
 		release := make(chan struct{})
 		finished := make(chan struct{})
-		tk := lift.NewTask(func(context.Context) (int, error) {
+		tk := monadz.NewTask(func(context.Context) (int, error) {
 			defer close(finished)
 			<-release
 			return 1, nil
@@ -112,7 +112,7 @@ func TestTaskTimeout(t *testing.T) {
 
 	t.Run("Given a Task that finishes in time", func(t *testing.T) {
 		t.Run("When Timeout is 1 minute", func(t *testing.T) {
-			r := lift.TaskOf(5).Timeout(time.Minute).Run(ctx)
+			r := monadz.TaskOf(5).Timeout(time.Minute).Run(ctx)
 			t.Run("Then the value returns", func(t *testing.T) { tskEq(t, "value", r.Must(), 5) })
 		})
 	})
@@ -120,7 +120,7 @@ func TestTaskTimeout(t *testing.T) {
 	t.Run("Given a Task that panics in time", func(t *testing.T) {
 		t.Run("When Timeout is 1 minute", func(t *testing.T) {
 			p := tskMustPanic(t, func() {
-				lift.NewTask(func(context.Context) (int, error) { panic("t") }).Timeout(time.Minute).Run(ctx)
+				monadz.NewTask(func(context.Context) (int, error) { panic("t") }).Timeout(time.Minute).Run(ctx)
 			})
 			t.Run("Then the caller gets a *PanicError", func(t *testing.T) { tskPanicError(t, p, "t") })
 		})
@@ -131,7 +131,7 @@ func TestTaskDelay(t *testing.T) {
 	t.Run("Given a Task with a 10ms Delay", func(t *testing.T) {
 		t.Run("When the delay ends", func(t *testing.T) {
 			start := time.Now()
-			r := lift.TaskOf(1).Delay(10 * time.Millisecond).Run(context.Background())
+			r := monadz.TaskOf(1).Delay(10 * time.Millisecond).Run(context.Background())
 			elapsed := time.Since(start)
 			t.Run("Then the work runs after the wait", func(t *testing.T) {
 				tskEq(t, "value", r.Must(), 1)
@@ -211,7 +211,7 @@ func TestTaskOnce(t *testing.T) {
 
 	t.Run("Given a Once Task whose first run waits for its ctx", func(t *testing.T) {
 		var calls atomic.Int32
-		tk := lift.NewTask(func(ctx context.Context) (int, error) {
+		tk := monadz.NewTask(func(ctx context.Context) (int, error) {
 			n := int(calls.Add(1))
 			if n == 1 {
 				<-ctx.Done()
@@ -256,7 +256,7 @@ func TestTaskRetry(t *testing.T) {
 		t.Run("When Retry allows 5 attempts", func(t *testing.T) {
 			var calls atomic.Int32
 			var attempts []int
-			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(lift.RetryPolicy{
+			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(monadz.RetryPolicy{
 				MaxAttempts: 5,
 				Backoff:     func(n int) time.Duration { attempts = append(attempts, n); return 0 },
 			}).Run(ctx)
@@ -272,7 +272,7 @@ func TestTaskRetry(t *testing.T) {
 		t.Run("When Retry allows 3 attempts", func(t *testing.T) {
 			var calls atomic.Int32
 			r := tskCounter(&calls, tskErrBoom, tskErrBoom, tskErrBoom, tskErrBoom).
-				Retry(lift.RetryPolicy{MaxAttempts: 3}).Run(ctx)
+				Retry(monadz.RetryPolicy{MaxAttempts: 3}).Run(ctx)
 			t.Run("Then the error tells 3 attempts and reaches the cause", func(t *testing.T) {
 				tskEq(t, "calls", calls.Load(), int32(3))
 				tskContains(t, r.Err().Error(), "after 3 attempt(s)")
@@ -283,7 +283,7 @@ func TestTaskRetry(t *testing.T) {
 		for _, n := range []int{1, 0, -3} {
 			t.Run("When MaxAttempts is "+map[int]string{1: "1", 0: "0", -3: "-3"}[n], func(t *testing.T) {
 				var calls atomic.Int32
-				r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(lift.RetryPolicy{MaxAttempts: n}).Run(ctx)
+				r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(monadz.RetryPolicy{MaxAttempts: n}).Run(ctx)
 				t.Run("Then the work runs exactly once", func(t *testing.T) {
 					tskEq(t, "calls", calls.Load(), int32(1))
 					tskContains(t, r.Err().Error(), "after 1 attempt(s)")
@@ -294,7 +294,7 @@ func TestTaskRetry(t *testing.T) {
 		t.Run("When RetryIf returns false", func(t *testing.T) {
 			var calls atomic.Int32
 			var seen error
-			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(lift.RetryPolicy{
+			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(monadz.RetryPolicy{
 				MaxAttempts: 5,
 				RetryIf:     func(err error) bool { seen = err; return false },
 			}).Run(ctx)
@@ -312,7 +312,7 @@ func TestTaskRetry(t *testing.T) {
 		for _, ce := range []error{context.Canceled, context.DeadlineExceeded} {
 			t.Run("When the error is "+ce.Error()+" and RetryIf is the default", func(t *testing.T) {
 				var calls atomic.Int32
-				r := tskCounter(&calls, ce).Retry(lift.RetryPolicy{MaxAttempts: 5}).Run(ctx)
+				r := tskCounter(&calls, ce).Retry(monadz.RetryPolicy{MaxAttempts: 5}).Run(ctx)
 				t.Run("Then it does not retry", func(t *testing.T) {
 					tskEq(t, "calls", calls.Load(), int32(1))
 					tskIs(t, r.Err(), ce)
@@ -321,7 +321,7 @@ func TestTaskRetry(t *testing.T) {
 		}
 		t.Run("When RetryIf always returns true", func(t *testing.T) {
 			var calls atomic.Int32
-			r := tskCounter(&calls, context.DeadlineExceeded).Retry(lift.RetryPolicy{
+			r := tskCounter(&calls, context.DeadlineExceeded).Retry(monadz.RetryPolicy{
 				MaxAttempts: 3,
 				RetryIf:     func(error) bool { return true },
 			}).Run(ctx)
@@ -337,9 +337,9 @@ func TestTaskRetry(t *testing.T) {
 			c, cancel := context.WithCancel(ctx)
 			time.AfterFunc(10*time.Millisecond, cancel)
 			start := time.Now()
-			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(lift.RetryPolicy{
+			r := tskCounter(&calls, tskErrBoom, tskErrBoom).Retry(monadz.RetryPolicy{
 				MaxAttempts: 5,
-				Backoff:     lift.ConstantBackoff(5 * time.Second),
+				Backoff:     monadz.ConstantBackoff(5 * time.Second),
 			}).Run(c)
 			elapsed := time.Since(start)
 			t.Run("Then the retry stops early and reaches both errors", func(t *testing.T) {
@@ -358,11 +358,11 @@ func TestTaskRetry(t *testing.T) {
 		t.Run("When Retry allows 5 attempts", func(t *testing.T) {
 			var calls atomic.Int32
 			c, cancel := context.WithCancel(ctx)
-			r := lift.NewTask(func(context.Context) (int, error) {
+			r := monadz.NewTask(func(context.Context) (int, error) {
 				calls.Add(1)
 				cancel()
 				return 0, tskErrBoom
-			}).Retry(lift.RetryPolicy{MaxAttempts: 5, RetryIf: func(error) bool { return true }}).Run(c)
+			}).Retry(monadz.RetryPolicy{MaxAttempts: 5, RetryIf: func(error) bool { return true }}).Run(c)
 			t.Run("Then no further attempt runs", func(t *testing.T) {
 				tskEq(t, "calls", calls.Load(), int32(1))
 				tskIs(t, r.Err(), tskErrBoom)
@@ -373,7 +373,7 @@ func TestTaskRetry(t *testing.T) {
 
 func TestBackoff(t *testing.T) {
 	t.Run("Given ConstantBackoff(3ms)", func(t *testing.T) {
-		b := lift.ConstantBackoff(3 * time.Millisecond)
+		b := monadz.ConstantBackoff(3 * time.Millisecond)
 		t.Run("When it is called for attempts 1, 2, and 10", func(t *testing.T) {
 			got := []time.Duration{b(1), b(2), b(10)}
 			t.Run("Then every wait is 3ms", func(t *testing.T) {
@@ -384,7 +384,7 @@ func TestBackoff(t *testing.T) {
 	})
 
 	t.Run("Given ExponentialBackoff(10ms, 70ms)", func(t *testing.T) {
-		b := lift.ExponentialBackoff(10*time.Millisecond, 70*time.Millisecond)
+		b := monadz.ExponentialBackoff(10*time.Millisecond, 70*time.Millisecond)
 		t.Run("When it is called for attempts 1 to 4 and 50", func(t *testing.T) {
 			got := []time.Duration{b(1), b(2), b(3), b(4), b(50)}
 			t.Run("Then the wait doubles and stops at the limit", func(t *testing.T) {
@@ -396,7 +396,7 @@ func TestBackoff(t *testing.T) {
 
 	t.Run("Given ExponentialBackoff(1ns, the largest Duration)", func(t *testing.T) {
 		limit := time.Duration(math.MaxInt64)
-		b := lift.ExponentialBackoff(time.Nanosecond, limit)
+		b := monadz.ExponentialBackoff(time.Nanosecond, limit)
 		t.Run("When it is called for attempts 62, 64, and 200", func(t *testing.T) {
 			got := []time.Duration{b(62), b(64), b(200)}
 			t.Run("Then the wait does not overflow and stops at the limit", func(t *testing.T) {
@@ -412,9 +412,9 @@ func TestSleep(t *testing.T) {
 			c, cancel := context.WithCancel(context.Background())
 			cancel()
 			got := []error{
-				lift.Sleep(context.Background(), 0),
-				lift.Sleep(context.Background(), -time.Second),
-				lift.Sleep(c, 0),
+				monadz.Sleep(context.Background(), 0),
+				monadz.Sleep(context.Background(), -time.Second),
+				monadz.Sleep(c, 0),
 			}
 			t.Run("Then it returns at once with ctx.Err()", func(t *testing.T) {
 				if got[0] != nil || got[1] != nil || got[2] != context.Canceled {
@@ -427,7 +427,7 @@ func TestSleep(t *testing.T) {
 	t.Run("Given a 5ms duration", func(t *testing.T) {
 		t.Run("When Sleep is called", func(t *testing.T) {
 			start := time.Now()
-			err := lift.Sleep(context.Background(), 5*time.Millisecond)
+			err := monadz.Sleep(context.Background(), 5*time.Millisecond)
 			elapsed := time.Since(start)
 			t.Run("Then it returns nil after the wait", func(t *testing.T) {
 				if err != nil || elapsed < 5*time.Millisecond {
@@ -442,7 +442,7 @@ func TestSleep(t *testing.T) {
 		cancel()
 		t.Run("When Sleep is called", func(t *testing.T) {
 			start := time.Now()
-			err := lift.Sleep(c, 5*time.Second)
+			err := monadz.Sleep(c, 5*time.Second)
 			elapsed := time.Since(start)
 			t.Run("Then it returns ctx.Err() at once", func(t *testing.T) {
 				if err != context.Canceled || elapsed >= time.Second {

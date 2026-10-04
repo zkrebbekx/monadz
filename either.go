@@ -1,4 +1,4 @@
-package lift
+package monadz
 
 import "fmt"
 
@@ -16,11 +16,11 @@ type Either[L, R any] struct {
 }
 
 // Left returns an Either that holds the Left value l. Go cannot infer R, so
-// write both type arguments: lift.Left[Paywall, Grant](p).
+// write both type arguments: monadz.Left[Paywall, Grant](p).
 func Left[L, R any](l L) Either[L, R] { return Either[L, R]{left: l} }
 
 // Right returns an Either that holds the Right value r. Go cannot infer L,
-// so write it: lift.Right[Paywall](grant).
+// so write it: monadz.Right[Paywall](grant).
 func Right[L, R any](r R) Either[L, R] { return Either[L, R]{right: r, isRight: true} }
 
 // IsLeft reports whether the Either holds a Left value.

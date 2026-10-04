@@ -1,10 +1,10 @@
-// Package lift provides monadic types for Go 1.27 and later: Option, Result,
+// Package monadz provides monadic types for Go 1.27 and later: Option, Result,
 // Either, Validation, Patch, Lazy, Task, State, Reader, and Writer.
 //
-// Lift uses Go 1.27 generic methods. A method can change the type of the
+// Monadz uses Go 1.27 generic methods. A method can change the type of the
 // value, so a pipeline reads left to right:
 //
-//	port := lift.Lookup(env, "PORT").   // Option[string]
+//	port := monadz.Lookup(env, "PORT").   // Option[string]
 //		OkOr(ErrNoPort).                // Result[string]
 //		Then(strconv.Atoi).             // Result[int]
 //		Ensure(validPort, ErrBadPort)   // Result[int]
@@ -24,7 +24,7 @@
 //
 // # Packages
 //
-// Package lift holds the types and their methods. The plural packages hold
+// Package monadz holds the types and their methods. The plural packages hold
 // functions that work on many values, in the style of the slices and maps
 // packages:
 //
@@ -33,4 +33,4 @@
 //   - eithers: Partition, Lefts, Rights, ...
 //   - validations: Map2 ... Map6, Collect, Traverse (error accumulation)
 //   - tasks: All, AllSettled, Any, Race, Traverse (with a concurrency limit)
-package lift
+package monadz

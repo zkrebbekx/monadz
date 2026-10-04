@@ -1,4 +1,4 @@
-package lift_test
+package monadz_test
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zkrebbekx/lift"
+	"github.com/zkrebbekx/monadz"
 )
 
 var tskErrBoom = errors.New("boom")
@@ -29,13 +29,13 @@ func tskMustPanic(t *testing.T, f func()) (p any) {
 	return nil
 }
 
-// tskPanicError asserts that p is a *lift.PanicError that crossed
+// tskPanicError asserts that p is a *monadz.PanicError that crossed
 // goroutines with the value want.
 func tskPanicError(t *testing.T, p any, want any) {
 	t.Helper()
-	pe, ok := p.(*lift.PanicError)
+	pe, ok := p.(*monadz.PanicError)
 	if !ok {
-		t.Fatalf("got panic %T(%v), want *lift.PanicError", p, p)
+		t.Fatalf("got panic %T(%v), want *monadz.PanicError", p, p)
 	}
 	if pe.Value != want {
 		t.Errorf("got panic value %v, want %v", pe.Value, want)
@@ -64,8 +64,8 @@ func tskIs(t *testing.T, err, target error) {
 // tskWaitCtx returns a Task that waits until its ctx ends. It closes
 // started (if not nil) when it begins and stopped (if not nil) when it
 // returns.
-func tskWaitCtx(started, stopped chan struct{}) lift.Task[int] {
-	return lift.NewTask(func(ctx context.Context) (int, error) {
+func tskWaitCtx(started, stopped chan struct{}) monadz.Task[int] {
+	return monadz.NewTask(func(ctx context.Context) (int, error) {
 		if started != nil {
 			close(started)
 		}
@@ -92,7 +92,7 @@ func TestTaskConstructors(t *testing.T) {
 	t.Run("Given NewTask with a Go-shaped function", func(t *testing.T) {
 		t.Run("When Run is called", func(t *testing.T) {
 			var got context.Context
-			r := lift.NewTask(func(c context.Context) (int, error) { got = c; return 7, nil }).Run(ctx)
+			r := monadz.NewTask(func(c context.Context) (int, error) { got = c; return 7, nil }).Run(ctx)
 			t.Run("Then it returns the value and passes the ctx", func(t *testing.T) {
 				tskEq(t, "value", r.Must(), 7)
 				if got != ctx {
@@ -101,7 +101,7 @@ func TestTaskConstructors(t *testing.T) {
 			})
 		})
 		t.Run("When the function fails", func(t *testing.T) {
-			r := lift.NewTask(func(context.Context) (int, error) { return 0, tskErrBoom }).Run(ctx)
+			r := monadz.NewTask(func(context.Context) (int, error) { return 0, tskErrBoom }).Run(ctx)
 			t.Run("Then Run returns the error", func(t *testing.T) {
 				if r.Err() != tskErrBoom {
 					t.Errorf("got %v, want %v", r.Err(), tskErrBoom)
@@ -110,7 +110,7 @@ func TestTaskConstructors(t *testing.T) {
 		})
 		t.Run("When the function panics", func(t *testing.T) {
 			p := tskMustPanic(t, func() {
-				lift.NewTask(func(context.Context) (int, error) { panic("bug") }).Run(ctx)
+				monadz.NewTask(func(context.Context) (int, error) { panic("bug") }).Run(ctx)
 			})
 			t.Run("Then the panic reaches the caller unchanged", func(t *testing.T) {
 				tskEq(t, "panic", p, "bug")
@@ -120,17 +120,17 @@ func TestTaskConstructors(t *testing.T) {
 
 	t.Run("Given TaskResult, TaskOf, and TaskErr", func(t *testing.T) {
 		t.Run("When each runs", func(t *testing.T) {
-			res := lift.TaskResult(func(context.Context) lift.Result[string] { return lift.Ok("hi") }).Run(ctx)
-			ok := lift.TaskOf(3).Run(ctx)
-			bad := lift.TaskErr[int](tskErrBoom).Run(ctx)
-			nilErr := lift.TaskErr[int](nil).Run(ctx)
+			res := monadz.TaskResult(func(context.Context) monadz.Result[string] { return monadz.Ok("hi") }).Run(ctx)
+			ok := monadz.TaskOf(3).Run(ctx)
+			bad := monadz.TaskErr[int](tskErrBoom).Run(ctx)
+			nilErr := monadz.TaskErr[int](nil).Run(ctx)
 			t.Run("Then each gives its value or error", func(t *testing.T) {
 				tskEq(t, "TaskResult", res.Must(), "hi")
 				tskEq(t, "TaskOf", ok.Must(), 3)
 				if bad.Err() != tskErrBoom {
 					t.Errorf("TaskErr: got %v, want %v", bad.Err(), tskErrBoom)
 				}
-				if nilErr.Err() != lift.ErrNilError {
+				if nilErr.Err() != monadz.ErrNilError {
 					t.Errorf("TaskErr(nil): got %v, want ErrNilError", nilErr.Err())
 				}
 			})
@@ -139,10 +139,10 @@ func TestTaskConstructors(t *testing.T) {
 
 	t.Run("Given a zero Task", func(t *testing.T) {
 		t.Run("When Run is called", func(t *testing.T) {
-			var tk lift.Task[int]
+			var tk monadz.Task[int]
 			r := tk.Run(ctx)
 			t.Run("Then it returns ErrZeroTask", func(t *testing.T) {
-				tskIs(t, r.Err(), lift.ErrZeroTask)
+				tskIs(t, r.Err(), monadz.ErrZeroTask)
 			})
 		})
 	})
@@ -152,7 +152,7 @@ func TestTaskConstructors(t *testing.T) {
 		cancel()
 		t.Run("When Run is called", func(t *testing.T) {
 			var calls atomic.Int32
-			r := lift.NewTask(func(context.Context) (int, error) { calls.Add(1); return 1, nil }).Run(c)
+			r := monadz.NewTask(func(context.Context) (int, error) { calls.Add(1); return 1, nil }).Run(c)
 			t.Run("Then the work does not start and the error is ctx.Err()", func(t *testing.T) {
 				tskEq(t, "calls", calls.Load(), int32(0))
 				tskIs(t, r.Err(), context.Canceled)
@@ -162,7 +162,7 @@ func TestTaskConstructors(t *testing.T) {
 
 	t.Run("Given a Task that counts its runs", func(t *testing.T) {
 		var calls atomic.Int32
-		tk := lift.NewTask(func(context.Context) (int32, error) { return calls.Add(1), nil })
+		tk := monadz.NewTask(func(context.Context) (int32, error) { return calls.Add(1), nil })
 		before := calls.Load()
 		t.Run("When it runs twice", func(t *testing.T) {
 			first, second := tk.Run(ctx).Must(), tk.Run(ctx).Must()
@@ -177,8 +177,8 @@ func TestTaskConstructors(t *testing.T) {
 
 func TestTaskTransformations(t *testing.T) {
 	ctx := context.Background()
-	good := lift.TaskOf(2)
-	bad := lift.TaskErr[int](tskErrBoom)
+	good := monadz.TaskOf(2)
+	bad := monadz.TaskErr[int](tskErrBoom)
 
 	t.Run("Given a successful Task and a failing Task", func(t *testing.T) {
 		t.Run("When Map is applied", func(t *testing.T) {
@@ -212,8 +212,8 @@ func TestTaskTransformations(t *testing.T) {
 		})
 
 		t.Run("When AndThen is applied", func(t *testing.T) {
-			g := good.AndThen(func(v int) lift.Task[int] { return lift.TaskOf(v * 10) }).Run(ctx)
-			b := bad.AndThen(func(int) lift.Task[int] { panic("must not run") }).Run(ctx)
+			g := good.AndThen(func(v int) monadz.Task[int] { return monadz.TaskOf(v * 10) }).Run(ctx)
+			b := bad.AndThen(func(int) monadz.Task[int] { panic("must not run") }).Run(ctx)
 			t.Run("Then it runs the next Task only after a success", func(t *testing.T) {
 				tskEq(t, "value", g.Must(), 20)
 				if b.Err() != tskErrBoom {
@@ -252,8 +252,8 @@ func TestTaskTransformations(t *testing.T) {
 
 		t.Run("When Recover and OrElse are applied", func(t *testing.T) {
 			r := bad.Recover(func(error) (int, error) { return 9, nil }).Run(ctx)
-			o := bad.OrElse(func(error) lift.Task[int] { return lift.TaskOf(8) }).Run(ctx)
-			og := good.OrElse(func(error) lift.Task[int] { panic("must not run") }).Run(ctx)
+			o := bad.OrElse(func(error) monadz.Task[int] { return monadz.TaskOf(8) }).Run(ctx)
+			og := good.OrElse(func(error) monadz.Task[int] { panic("must not run") }).Run(ctx)
 			t.Run("Then a failure is replaced and a success stays", func(t *testing.T) {
 				tskEq(t, "Recover", r.Must(), 9)
 				tskEq(t, "OrElse", o.Must(), 8)
@@ -270,15 +270,15 @@ func TestTaskZipWith(t *testing.T) {
 	t.Run("Given two Tasks that pass only when both wait at a barrier", func(t *testing.T) {
 		var wg sync.WaitGroup
 		wg.Add(2)
-		barrier := func(v int) lift.Task[int] {
-			return lift.NewTask(func(ctx context.Context) (int, error) {
+		barrier := func(v int) monadz.Task[int] {
+			return monadz.NewTask(func(ctx context.Context) (int, error) {
 				wg.Done()
 				wg.Wait() // passes only when the other Task also runs
 				return v, nil
 			})
 		}
 		t.Run("When ZipWith runs them", func(t *testing.T) {
-			done := make(chan lift.Result[int], 1)
+			done := make(chan monadz.Result[int], 1)
 			go func() {
 				done <- barrier(2).ZipWith(barrier(3), func(a, b int) int { return a * b }).Run(ctx)
 			}()
@@ -302,8 +302,8 @@ func TestTaskZipWith(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				started, stopped := make(chan struct{}), make(chan struct{})
 				// The failing Task fails only after the other Task runs.
-				failing := lift.NewTask(func(context.Context) (int, error) { <-started; return 0, tskErrBoom })
-				var tk lift.Task[int]
+				failing := monadz.NewTask(func(context.Context) (int, error) { <-started; return 0, tskErrBoom })
+				var tk monadz.Task[int]
 				if failFirst {
 					tk = failing.ZipWith(tskWaitCtx(started, stopped), sum)
 				} else {
@@ -332,8 +332,8 @@ func TestTaskZipWith(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				started, stopped := make(chan struct{}), make(chan struct{})
 				// The panicking Task panics only after the other Task runs.
-				panicky := lift.NewTask(func(context.Context) (int, error) { <-started; panic("zip bug") })
-				var tk lift.Task[int]
+				panicky := monadz.NewTask(func(context.Context) (int, error) { <-started; panic("zip bug") })
+				var tk monadz.Task[int]
 				if first {
 					tk = panicky.ZipWith(tskWaitCtx(started, stopped), sum)
 				} else {
@@ -352,9 +352,9 @@ func TestTaskZipWith(t *testing.T) {
 	})
 
 	t.Run("Given a ZipWith nested in a ZipWith with a panic inside", func(t *testing.T) {
-		inner := lift.NewTask(func(context.Context) (int, error) { panic("deep") }).ZipWith(lift.TaskOf(1), sum)
+		inner := monadz.NewTask(func(context.Context) (int, error) { panic("deep") }).ZipWith(monadz.TaskOf(1), sum)
 		t.Run("When the outer Task runs", func(t *testing.T) {
-			p := tskMustPanic(t, func() { inner.ZipWith(lift.TaskOf(1), sum).Run(ctx) })
+			p := tskMustPanic(t, func() { inner.ZipWith(monadz.TaskOf(1), sum).Run(ctx) })
 			t.Run("Then the original panic value reaches the caller", func(t *testing.T) {
 				tskPanicError(t, p, "deep")
 			})
