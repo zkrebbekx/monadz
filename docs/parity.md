@@ -13,6 +13,7 @@ means that monadz has no equivalent, and the "Note" column says why.
 | `expect`, `unwrap` | `Expect`, `Must` | |
 | `unwrap_or`, `unwrap_or_else`, `unwrap_or_default` | `ValueOr`, `ValueOrElse`, `ValueOrZero` | |
 | `map` | `Map` | can change the type |
+| — | `Then` | takes `func(T) (U, bool)`, such as `os.LookupEnv` |
 | `inspect` | `Inspect` | |
 | `map_or`, `map_or_else` | `MapOr`, `MapOrElse` | |
 | `ok_or`, `ok_or_else` | `OkOr`, `OkOrElse` | |
@@ -28,13 +29,13 @@ means that monadz has no equivalent, and the "Note" column says why.
 | `iter` | `All` | returns `iter.Seq[T]` |
 | `?` operator | `Try` inside `DoOption` or `Do` | |
 | `bool::then_some`, `bool::then` | `monadz.When`, `monadz.WhenFunc` | |
-| `slice::get` | `monadz.At` | negative index counts from the end |
+| `slice::get` | `monadz.At` | a negative index gives `None` |
 | `HashMap::get` | `monadz.Lookup` | |
 | `collect::<Option<Vec<_>>>` | `options.Collect` | |
 | `Iterator::find`, `next`, `last`, `max`, `min` | `options.Find`, `Head`, `Last`, `Max`, `Min` | |
 | `filter_map`, `flatten` (iterator) | `options.FilterMap`, `options.Values` | |
 | `as_ref`, `as_mut`, `copied`, `cloned` | — | Go has no borrow types |
-| `contains` | `options.Contains` | needs `comparable` |
+| `opt == Some(v)`, `is_some_and(\|x\| x == v)` | `options.Contains` | needs `comparable` |
 
 ## Rust `Result<T, E>`
 
@@ -47,7 +48,7 @@ means that monadz has no equivalent, and the "Note" column says why.
 | `expect`, `unwrap`, `unwrap_err` | `Expect`, `Must`, `MustErr` | |
 | `unwrap_or`, `unwrap_or_else`, `unwrap_or_default` | `ValueOr`, `ValueOrElse`, `ValueOrZero` | |
 | `map`, `map_err` | `Map`, `MapErr` | |
-| — | `Then` | takes `func(T) (U, error)` |
+| — | `Then` | takes `func(T) (U, error)`, such as `strconv.Atoi` or `url.Parse` |
 | `map_or`, `map_or_else` | `MapOr`, `MapOrElse` | |
 | `inspect`, `inspect_err` | `Inspect`, `InspectErr` | |
 | `and`, `and_then` | `And`, `AndThen` | |
@@ -59,44 +60,58 @@ means that monadz has no equivalent, and the "Note" column says why.
 | anyhow `context` | `Wrap`, `Wrapf` | keeps `errors.Is` |
 | `std::panic::catch_unwind` | `monadz.DoRecover` | `*PanicError` keeps the stack |
 
-## Haskell type classes
+## Haskell type classes and functions
 
 | Haskell | monadz | Note |
 |---------|------|------|
-| `fmap`, `<$>` | `Map` | on every type |
-| `pure`, `return` | `Some`, `Ok`, `Right`, `Valid`, `TaskOf`, `StateOf`, `ReaderOf`, `NewWriter` | |
-| `>>=` | `AndThen` | on every type |
-| `>>` | `State.Then`, `Option.And`, `Result.And` | |
+| `fmap`, `<$>` | `Map` | on every monad type and on `Patch` (not `Future`) |
+| `pure`, `return` | `Some`, `Ok`, `Right`, `Valid`, `TaskOk`, `StateOf`, `ReaderOf`, `NewWriter` | |
+| `>>=` | `AndThen` | on every monad type (not `Patch`, not `Future`) |
+| `>>` | `State.And`, `Option.And`, `Result.And` | |
 | `>=>` (Kleisli) | `options.Compose`, `results.Compose` | |
 | `join` | `options.Flatten`, `results.Flatten`, `eithers.Flatten` | |
-| `liftA2` | `ZipWith` | on Option, Result, Lazy, Task |
+| `liftA2` | `ZipWith` | on `Option`, `Result`, `Validation`, `Lazy`, `Task` |
 | `liftA3` | `options.Map3`, `results.Map3`, `validations.Map3` | |
 | `sequence`, `sequenceA` | `options.Collect`, `results.Collect`, `eithers.Collect`, `tasks.All` | |
 | `traverse`, `mapM` | `options.Traverse`, `results.Traverse`, `validations.Traverse`, `tasks.Traverse` | `tasks.Traverse` is concurrent |
 | `foldM` | `results.Fold` | |
 | `<\|>`, `asum` | `Or`, `options.First`, `results.First` | |
-| `guard` | `Filter`, `Ensure` | |
+| `mfilter` | `Filter`, `Ensure` | |
 | `maybe`, `either` | `Option.Match`, `Either.Match`, `Result.Match` | |
 | `fromMaybe` | `ValueOr` | |
 | `catMaybes`, `mapMaybe` | `options.Values`, `options.FilterMap` | |
 | `lefts`, `rights`, `partitionEithers` | `eithers.Lefts`, `eithers.Rights`, `eithers.Partition` | |
+| `fromLeft`, `fromRight` | `Either.LeftOr`, `Either.RightOr` | both take a default |
+| `leftToMaybe`, `rightToMaybe` (package `either`) | `Either.Left`, `Either.Right` | return an `Option` |
 | `bimap`, `first` (Bifunctor) | `Either.BiMap`, `Either.MapLeft` | |
 | `Data.Validation` | `Validation`, `validations.Map2..Map6` | |
-| `State`: `get`, `put`, `modify`, `gets`, `evalState`, `execState` | `GetState`, `PutState`, `ModifyState`, `GetsState`, `Eval`, `Exec` | |
-| `Reader`: `ask`, `asks`, `local` | `Ask`, `Asks`, `Local` | |
+| `validation` (fold) | `Validation.Match` | |
+| `State`: `get`, `put`, `modify`, `gets`, `evalState`, `execState` | `GetState`, `PutState`, `ModifyState`, `GetStateWith`, `Eval`, `Exec` | |
+| `Reader`: `ask`, `asks`, `local` | `Ask`, `NewReader`, `Local` | |
 | `Writer`: `tell`, `censor` | `Tell`, `Censor` | the log is a slice |
-| `Control.Concurrent.Async`: `concurrently`, `race`, `mapConcurrently` | `tasks.Zip`, `tasks.Race`, `tasks.Traverse` | with cancellation |
+| `Control.Concurrent.Async`: `concurrently`, `mapConcurrently` | `tasks.Zip`, `tasks.Traverse` | with cancellation |
+| `Control.Concurrent.Async`: `race` | `tasks.Race` | `race` takes 2 actions and returns an `Either`; `tasks.Race` takes N tasks of one type |
+| `System.Timeout.timeout` (in `base`) | `Task.Timeout` | |
 | `Functor` / `Monad` as a type class | — | Go 1.27 forbids type parameters on interface methods |
-| Monad transformers (`ExceptT`, `ReaderT`, …) | — | `Task` already combines context (Reader), errors (Except), and I/O |
+| Monad transformers (`ExceptT`, `ReaderT`, …) | — | `Task[T]` is close to `ReaderT Context (ExceptT error IO) T` |
 | `Cont`, `STM` | — | not useful in Go |
+
+## Rust futures
+
+| Rust | monadz | Note |
+|------|------|------|
+| `futures::future::join_all`, `try_join_all` | `tasks.AllSettled`, `tasks.All` | |
+| `futures::future::select_ok` | `tasks.Any` | `select_ok` keeps only the last error; `tasks.Any` joins all errors |
+| `futures::future::select_all` | `tasks.Race` | both take N futures |
+| `tokio::time::timeout` | `Task.Timeout` | |
 
 ## Where monadz goes further
 
 | Feature | Rust / Haskell | monadz |
 |---------|----------------|------|
-| Cancel the losers of a race or a failed `All` | Rust: drop the futures; Haskell async: yes | yes, and wait for them to stop |
-| A panic in a concurrent task | Rust: the task's `JoinError`; Haskell: rethrown | rethrown in the waiting goroutine with the original stack |
+| Cancel the losers of a race or a failed `All` | Rust: drop the futures; Haskell async: yes | yes, and wait until they stop (`Timeout` does not wait) |
+| A panic in a concurrent task | Rust: the task's `JoinError`; Haskell: rethrown | raised again in the waiting goroutine with the original stack |
 | A three-state PATCH field | — | `Patch[T]` |
 | JSON, SQL, and structured logging | serde / aeson, separate crates | built in, JSON v1 and v2 |
 | Field-level validation errors | libraries | `Validation.Field` and `*FieldError` |
-| Retry with backoff, timeout, run-once | separate crates | `Task.Retry`, `Timeout`, `Once` |
+| Retry with backoff, run-once | separate crates and packages | `Task.Retry`, `Task.Once` |
